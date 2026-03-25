@@ -2,6 +2,12 @@ using BmsTelemetry.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configuration
+builder.Services.AddAppSettings(builder.Configuration, builder.Environment);
+
+// Logging
+builder.AddAppLogging();
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
