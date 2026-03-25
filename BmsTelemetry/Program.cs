@@ -13,6 +13,11 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddSingleton<IBmsHandlerRegistry, MockBmsHandlerRegistry>();
+builder.Services.AddCertificateSource(builder.Environment);
+builder.Services.AddIotDevice(builder.Configuration, builder.Environment);
+builder.Services.AddSingleton<CertificateProvider>();
+builder.Services.AddSingleton<KeyvaultService>();
+builder.Services.AddSingleton<DpsService>();
 
 var app = builder.Build();
 
