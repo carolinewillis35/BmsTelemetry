@@ -1,0 +1,8 @@
+<div class="card">
+    <p>BMS IP address: @BmsHandler.DeviceIP</p>
+    <p>Connection status: @BmsHandler.Connection</p>
+</div>
+
+@code {
+    [Parameter] public IBmsHandler BmsHandler { get; set; } = default!;
+}

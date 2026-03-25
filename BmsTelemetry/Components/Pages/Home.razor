@@ -1,7 +1,27 @@
 ﻿@page "/"
+@inject IBmsHandlerRegistry BmsHandlerRegistry
 
-<PageTitle>Home</PageTitle>
+<h3>BMS Handlers</h3>
 
-<h1>Hello, world!</h1>
+@if (handlers == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="grid">
+        @foreach (var handler in handlers)
+        {
+            <HandlerCard BmsHandler="handler" />
+        }
+    </div>
+}
 
-Welcome to your new app.
+@code {
+    private IReadOnlyCollection<IBmsHandler>? handlers;
+
+    protected override void OnInitialized()
+    {
+        handlers = BmsHandlerRegistry.GetHandlers();
+    }
+}
