@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BmsTelemetry.Tests/BmsTelemetry.Tests.csproj" />
+  <Project Path="BmsTelemetry/BmsTelemetry.csproj" />
+</Solution>
