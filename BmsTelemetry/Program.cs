@@ -12,7 +12,7 @@ builder.AddAppLogging();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddSingleton<IBmsHandlerRegistry, MockBmsHandlerRegistry>();
+builder.Services.AddSingleton<IBmsHandlerRegistry, BmsHandlerRegistry>();
 builder.Services.AddCertificateSource(builder.Environment);
 builder.Services.AddIotDevice(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton<CertificateProvider>();
