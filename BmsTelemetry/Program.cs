@@ -12,15 +12,17 @@ builder.AddAppLogging();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddSingleton<IBmsHandlerRegistry, BmsHandlerRegistry>();
 builder.Services.AddCertificateSource(builder.Environment);
 builder.Services.AddIotDevice(builder.Configuration, builder.Environment);
+builder.Services.AddSingleton<IBmsHandlerFactory>();
+builder.Services.AddSingleton<IBmsHandlerRegistry, BmsHandlerRegistry>();
 builder.Services.AddSingleton<CertificateProvider>();
 builder.Services.AddSingleton<KeyvaultService>();
 builder.Services.AddSingleton<DpsService>();
 
 // Workers
 builder.Services.AddHostedService<BmsSupervisor>();
+builder.Services.AddHostedService<BmsWorker>();
 
 var app = builder.Build();
 

@@ -1,12 +1,26 @@
-public static class IBmsHandlerFactory
+using Microsoft.Extensions.Options;
+
+public class IBmsHandlerFactory
 {
-    public static IBmsHandler Create(DeviceSettings deviceSettings, GeneralSettings generalSettings)
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly GeneralSettings _generalSettings;
+    private readonly IIotDevice _iotDevice;
+
+    public IBmsHandlerFactory(ILoggerFactory loggerFactory, IOptions<GeneralSettings> generalSettings, IIotDevice iotDevice)
     {
-        var client = IBmsHandlerFactory.GetClientForSettings(deviceSettings, generalSettings);
-        return new BmsHandler(deviceSettings, generalSettings, client);
+        _loggerFactory = loggerFactory;
+        _generalSettings = generalSettings.Value;
+        _iotDevice = iotDevice;
     }
 
-    private static IBmsClient GetClientForSettings(DeviceSettings deviceSettings, GeneralSettings generalSettings)
+    public IBmsHandler Create(DeviceSettings deviceSettings)
+    {
+        var client = GetClientForSettings(deviceSettings, _generalSettings);
+
+        return new BmsHandler(deviceSettings, _generalSettings, client, _loggerFactory);
+    }
+
+    private IBmsClient GetClientForSettings(DeviceSettings deviceSettings, GeneralSettings generalSettings)
     {
         switch (deviceSettings.device_type)
         {
@@ -22,7 +36,9 @@ public static class IBmsHandlerFactory
                     new BmsHttpTransport(
                         new Uri($"http://{deviceSettings.IP}/http/xml.cgi"),
                         generalSettings
-                    )
+                    ),
+                    _loggerFactory,
+                    _iotDevice
                 );
             case BmsType.EmersonE3:
                 return new E3DeviceClient(

@@ -1,17 +1,67 @@
+using System.Text.Json.Nodes;
+
 public sealed class DanfossDeviceClient : BaseDeviceClient
 {
-    public DanfossDeviceClient(IBmsTransport transport) : base(transport)
-    { }
+    private readonly DanfossProtocol _protocol;
+    private readonly ILogger<DanfossDeviceClient> _logger;
+    private readonly IIotDevice _iotDevice;
+
+    // Data
+    private JsonNode? _sensors;
+
+    public DanfossDeviceClient(IBmsTransport transport, ILoggerFactory loggerFactory, IIotDevice iotDevice) : base(transport)
+    {
+        _logger = loggerFactory.CreateLogger<DanfossDeviceClient>();
+        _protocol = new DanfossProtocol(transport, loggerFactory);
+        _iotDevice = iotDevice;
+    }
 
     protected override async Task RunAsync(CancellationToken ct)
     {
+        // initialize
+        // _sensors = await ReadSensorsAsync(ct);
+
         while (!ct.IsCancellationRequested)
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "/status");
-
-            var response = await _transport.SendAsync(request, ct);
-
-            // parse / update state here
+            // poll
+            _sensors = await ReadSensorsAsync(ct);
+            await Task.Delay(10_000);
         }
+        //
+        // need to add a worker to just do it and then print to console!
+        //
+        // todo: implement send to azure (not yet)
     }
+
+    // Helpers
+
+    private async Task<JsonNode?> ExecuteWithTracking(
+        Func<Task<JsonNode?>> action)
+    {
+        var result = await action();
+
+        if (result == null)
+        {
+            RegisterFailure();
+            return null;
+        }
+
+        RegisterSuccess();
+        return result;
+    }
+
+    // Interaction methods
+
+    private Task<JsonNode?> ReadSensorsAsync(CancellationToken ct)
+    {
+        return ExecuteWithTracking(() =>
+            _protocol.SendCommandAsync("read_sensors", null, ct));
+    }
+
+    private Task<JsonNode?> ReadHvacUnitAsync(string ahindex, CancellationToken ct)
+    {
+        return ExecuteWithTracking(() =>
+            _protocol.SendCommandAsync("read_hvac_unit", new Dictionary<string, string>() { ["ahindex"] = ahindex }, ct));
+    }
+
 }

@@ -3,15 +3,17 @@ using Microsoft.Extensions.Options;
 public class BmsHandlerRegistry : IBmsHandlerRegistry
 {
     private Dictionary<string, IBmsHandler> bmsHandlers = new();
+    private readonly IBmsHandlerFactory _bmsHandlerFactory;
 
-    public BmsHandlerRegistry(IOptions<NetworkSettings> networkSettings, IOptions<GeneralSettings> generalSettings)
+    public BmsHandlerRegistry(IOptions<NetworkSettings> networkSettings, IOptions<GeneralSettings> generalSettings, IBmsHandlerFactory bmsHandlerFactory)
     {
         var netsettings = networkSettings.Value.bms_devices;
         var gensettings = generalSettings.Value;
+        _bmsHandlerFactory = bmsHandlerFactory;
 
         foreach (var entry in netsettings)
         {
-            var handler = IBmsHandlerFactory.Create(entry, gensettings);
+            var handler = _bmsHandlerFactory.Create(entry);
             RegisterDevice(handler);
         }
     }

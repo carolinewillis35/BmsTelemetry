@@ -1,6 +1,7 @@
 public class BmsHandler : IBmsHandler
 {
     private readonly object _stateLock = new();
+    private readonly ILogger<BmsHandler> _logger;
 
     public string DeviceIP { get; init; }
     public BmsType DeviceType { get; init; }
@@ -15,12 +16,13 @@ public class BmsHandler : IBmsHandler
     private readonly IBmsClient _bmsClient;
     private readonly GeneralSettings _generalSettings;
 
-    public BmsHandler(DeviceSettings deviceSettings, GeneralSettings generalSettings, IBmsClient bmsClient)
+    public BmsHandler(DeviceSettings deviceSettings, GeneralSettings generalSettings, IBmsClient bmsClient, ILoggerFactory loggerFactory)
     {
         DeviceIP = deviceSettings.IP;
         DeviceType = deviceSettings.device_type;
         _bmsClient = bmsClient;
         _generalSettings = generalSettings;
+        _logger = loggerFactory.CreateLogger<BmsHandler>();
 
         // Subscribe to client status updates
         if (_bmsClient is BaseDeviceClient client)
@@ -74,8 +76,9 @@ public class BmsHandler : IBmsHandler
         lock (_stateLock)
         {
             // Stop if too many consecutive failures
-            if (ConsecutiveFailures >= 5 && Status == BmsHandlerStatus.Polling)
+            if (ConsecutiveFailures >= 5 && Status != BmsHandlerStatus.Stopped)
             {
+                _logger.LogWarning($"Stopping {this.DeviceIP} due to excessive failures.");
                 _ = StopAsync(); // fire-and-forget safe here
                 return;
             }
@@ -84,6 +87,7 @@ public class BmsHandler : IBmsHandler
             if ((Status == BmsHandlerStatus.Stopped || Status == BmsHandlerStatus.Idle) &&
                 (DateTime.UtcNow - LastFailure) > TimeSpan.FromMinutes(30))
             {
+                _logger.LogInformation($"Starting {this.DeviceIP} after a cooldown period.");
                 _ = StartAsync(ct);
             }
         }

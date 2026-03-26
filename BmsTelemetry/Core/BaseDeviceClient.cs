@@ -5,6 +5,8 @@ public abstract class BaseDeviceClient : IBmsClient
 
     private Task? _executionTask;
 
+    protected int _consecutiveFailures;
+
     public BaseDeviceClient(IBmsTransport transport)
     {
         _transport = transport;
@@ -36,4 +38,29 @@ public abstract class BaseDeviceClient : IBmsClient
     }
 
     protected abstract Task RunAsync(CancellationToken ct);
+
+    protected void RegisterSuccess()
+    {
+        _consecutiveFailures = 0;
+
+        RaiseStatus(new ClientStatusUpdate(
+            ConnectionStatus.Connected,
+            DateTime.UtcNow,
+            DateTime.MinValue,
+            _consecutiveFailures
+        ));
+    }
+
+    protected void RegisterFailure()
+    {
+        _consecutiveFailures++;
+
+        RaiseStatus(new ClientStatusUpdate(
+            ConnectionStatus.Disconnected,
+            DateTime.MinValue,
+            DateTime.UtcNow,
+            _consecutiveFailures
+        ));
+    }
+
 }

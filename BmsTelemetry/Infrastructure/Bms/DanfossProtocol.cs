@@ -13,10 +13,10 @@ public class DanfossProtocol
         ["units"] = "U"
     };
 
-    public DanfossProtocol(IBmsTransport transport, ILogger<DanfossProtocol> logger)
+    public DanfossProtocol(IBmsTransport transport, ILoggerFactory loggerFactory)
     {
         _transport = transport;
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<DanfossProtocol>();
     }
 
     public async Task<JsonNode?> SendCommandAsync(string action, IDictionary<string, string>? extraParams, CancellationToken ct)
