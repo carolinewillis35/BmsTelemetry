@@ -89,19 +89,22 @@ public class BmsHandler : IBmsHandler
             return;
         }
 
-        var flattened = new JsonObject();
+        // var flattened = new JsonObject();
+        // flattened["x"] = "y";
+        var flattened = NormalizerService.Normalize(DeviceIP, DeviceType.ToString(), "testing", json.AsObject());
+        JsonObject test = flattened["data"]!.AsObject();
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        foreach (var (key, val) in flattened)
+        foreach (var (key, val) in test)
         {
             db.Telemetry.Add(new TelemetryRecord
             {
                 Ip = DeviceIP,
                 DeviceKey = DeviceType.ToString(),
                 DataKey = key,
-                DataValue = val,
+                DataValue = (string?)val ?? "?",
                 Timestamp = DateTime.UtcNow
             });
         }

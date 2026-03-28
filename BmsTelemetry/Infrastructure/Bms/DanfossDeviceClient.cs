@@ -1,25 +1,27 @@
 using System.Text.Json.Nodes;
 using System.Runtime.CompilerServices;
 
-public sealed class DanfossDeviceClient : BaseDeviceClient
+public sealed class DanfossDeviceClient : IBmsClient
 {
     private readonly DanfossProtocol _protocol;
     private readonly ILogger<DanfossDeviceClient> _logger;
+    private readonly IBmsTransport _transport;
     private readonly IIotDevice _iotDevice;
 
-    public DanfossDeviceClient(IBmsTransport transport, ILoggerFactory loggerFactory, IIotDevice iotDevice) : base(transport)
+    public DanfossDeviceClient(IBmsTransport transport, ILoggerFactory loggerFactory, IIotDevice iotDevice)
     {
         _logger = loggerFactory.CreateLogger<DanfossDeviceClient>();
         _protocol = new DanfossProtocol(transport, loggerFactory);
         _iotDevice = iotDevice;
+        _transport = transport;
     }
 
     public async IAsyncEnumerable<ClientCommand> GetPollingSequenceAsync([EnumeratorCancellation] CancellationToken ct)
     {
-        // yield return new ClientCommand(
-        //     "ReadSensorsAsync",
-        //     async ct2 => _sensors = await ReadSensorsAsync(ct2)
-        // );
+        yield return new ClientCommand(
+            "ReadSensorsAsync",
+            async ct2 => await ReadSensorsAsync(ct2)
+        );
     }
 
     // Interaction methods

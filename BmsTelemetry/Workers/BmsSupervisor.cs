@@ -17,11 +17,22 @@ public class BmsSupervisor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // init
+        var handlers = _registry.GetHandlers();
+        _logger.LogInformation("Starting {handlers.Count} handlers", handlers.Count);
+        await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
+
+        foreach (var handler in handlers)
+        {
+            await handler.EnqueueStart();
+        }
+
+        // loop forever
         while (!stoppingToken.IsCancellationRequested)
         {
             var healthTelemetry = new JsonArray();
 
-            foreach (var handler in _registry.GetHandlers())
+            foreach (var handler in handlers)
             {
                 await handler.EvaluateAsync(stoppingToken);
 

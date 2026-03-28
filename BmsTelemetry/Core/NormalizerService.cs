@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
 
-public sealed class NormalizerService
+public static class NormalizerService
 {
-    public JsonObject Normalize(
+    public static JsonObject Normalize(
         string deviceIp,
         string deviceType,
         string dataAddress,
@@ -37,7 +37,7 @@ public sealed class NormalizerService
         };
     }
 
-    private void FlattenJson(JsonNode node, Dictionary<string, object?> output, string prefix)
+    private static void FlattenJson(JsonNode node, Dictionary<string, object?> output, string prefix)
     {
         switch (node)
         {

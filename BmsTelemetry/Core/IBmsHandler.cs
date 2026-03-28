@@ -10,4 +10,7 @@ public interface IBmsHandler
     DateTime LastFailure { get; }
 
     Task EvaluateAsync(CancellationToken ct);
+
+    ValueTask EnqueueStart();
+    ValueTask EnqueueStop();
 }

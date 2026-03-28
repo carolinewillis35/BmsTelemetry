@@ -1,14 +1,13 @@
 public enum HandlerCommandType
 {
-    PollStep,
-    UserCommand,
     Start,
-    Stop
+    Stop,
+    PollStep
 }
 
 public record HandlerCommand(
     HandlerCommandType Type,
-    ClientCommand? clientCommand = null
+    ClientCommand? ClientCmd = null
 )
 {
     public static HandlerCommand Start() => new(HandlerCommandType.Start);
