@@ -43,12 +43,4 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-try
-{
-    app.Run();
-}
-catch
-{
-
-}
-
+app.Run();

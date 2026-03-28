@@ -65,6 +65,7 @@ public class BmsHttpTransport : IBmsTransport
                             response.StatusCode);
                     }
 
+                    _logger.LogDebug("Successfully received {requestName}", requestName);
                     return response;
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
