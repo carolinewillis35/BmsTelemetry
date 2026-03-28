@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 public static class NormalizerService
 {
     public static JsonObject Normalize(
-        string deviceIp,
         string deviceType,
         string dataAddress,
         JsonObject? rawData)
@@ -32,7 +31,6 @@ public static class NormalizerService
         return new JsonObject
         {
             ["device_key"] = $"{deviceType}:{dataAddress}",
-            ["ip"] = deviceIp,
             ["data"] = dataObject
         };
     }

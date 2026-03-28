@@ -33,6 +33,10 @@ public class AppDbContext : DbContext
                   .IsRequired()
                   .HasMaxLength(500);
 
+            entity.Property(e => e.Source)
+                  .IsRequired()
+                  .HasMaxLength(100);
+
             entity.Property(e => e.Timestamp)
                   .IsRequired();
 

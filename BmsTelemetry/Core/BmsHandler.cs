@@ -89,9 +89,7 @@ public class BmsHandler : IBmsHandler
             return;
         }
 
-        // var flattened = new JsonObject();
-        // flattened["x"] = "y";
-        var flattened = NormalizerService.Normalize(DeviceIP, DeviceType.ToString(), "testing", json.AsObject());
+        var flattened = NormalizerService.Normalize(DeviceType.ToString(), "testing", json.AsObject());
         JsonObject test = flattened["data"]!.AsObject();
 
         using var scope = _scopeFactory.CreateScope();
@@ -105,7 +103,8 @@ public class BmsHandler : IBmsHandler
                 DeviceKey = DeviceType.ToString(),
                 DataKey = key,
                 DataValue = (string?)val ?? "?",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                Source = cmd.Name
             });
         }
 
