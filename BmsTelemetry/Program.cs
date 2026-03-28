@@ -21,11 +21,16 @@ builder.Services.AddSingleton<KeyvaultService>();
 builder.Services.AddSingleton<DpsService>();
 builder.Services.AddSingleton<UptimeService>();
 
+builder.Services.AddAppDatabase("Data/database.db");
+
 // Workers
 builder.Services.AddHostedService<BmsSupervisor>();
 builder.Services.AddHostedService<BmsWorker>();
 
 var app = builder.Build();
+
+// Ensure DB exists
+app.EnsureAppDatabaseCreated();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

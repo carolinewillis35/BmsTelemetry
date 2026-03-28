@@ -43,8 +43,8 @@ coverage/
 # Publish output
 publish/
 
-# Replay data
-ReplayData/
+# Data
+Data/
 
 # Development certificates
 DevelopmentKeys/
