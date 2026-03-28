@@ -122,6 +122,9 @@ public class BmsHttpTransport : IBmsTransport
                         var delay = TimeSpan.FromSeconds(baseDelaySeconds * backoff)
                             + TimeSpan.FromMilliseconds(jitterMs);
 
+                        if (delay > TimeSpan.FromSeconds(30))
+                            delay = TimeSpan.FromSeconds(30);
+
                         await Task.Delay(delay, ct);
                     }
                     catch (OperationCanceledException) when (ct.IsCancellationRequested)
