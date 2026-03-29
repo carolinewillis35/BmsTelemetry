@@ -38,6 +38,16 @@ public sealed class DanfossDeviceClient : IBmsClient
             "ReadVarOutsAsync",
             async ct2 => await ReadVarOutsAsync(ct2)
         );
+
+        yield return new ClientCommand(
+            "AlarmSummaryAsync",
+            async ct2 => await AlarmSummaryAsync(ct2)
+        );
+
+        yield return new ClientCommand(
+            "ReadDevicesAsync",
+            async ct2 => await ReadDevicesAsync(ct2)
+        );
     }
 
     // Interaction methods
@@ -78,7 +88,46 @@ public sealed class DanfossDeviceClient : IBmsClient
         return InjectedNodetypeParse("3", "var_output", response);
     }
 
+    private async Task<JsonNode?> AlarmSummaryAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("alarm_summary", null, ct);
+        if (response is null)
+            return null;
+
+        return BareParse("alarm_summary", response);
+    }
+
+    private async Task<JsonNode?> ReadDevicesAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("read_devices", null, ct);
+        if (response is null)
+            return null;
+
+        return AtParse("device", response);
+    }
+
+    // private Task<JsonNode?> ReadHvacUnitAsync(string ahindex, CancellationToken ct)
+    // {
+    //     return _protocol.SendCommandAsync("read_hvac_unit", new Dictionary<string, string>() { ["ahindex"] = ahindex }, ct);
+    // }
+
     // Helper methods
+
+    private JsonObject BareParse(string deviceKey, JsonNode data)
+    {
+        var jsonResponse = data["resp"]?.AsObject() ?? new JsonObject();
+        var normalized = NormalizerService.Normalize(jsonResponse);
+
+        var obj = new JsonObject
+        {
+            ["device_key"] = "alarm_summary",
+            ["data"] = normalized.DeepClone()
+        };
+
+        var root = new JsonObject();
+        root["data"] = new JsonArray(obj);
+        return root;
+    }
 
     private JsonObject InjectedNodetypeParse(string nodeType, string subKey, JsonNode data)
     {
@@ -96,6 +145,39 @@ public sealed class DanfossDeviceClient : IBmsClient
             var node = entry["node"]?.GetValue<string>() ?? "?";
             var mod = entry["mod"]?.GetValue<string>() ?? "?";
             var point = entry["point"]?.GetValue<string>() ?? "?";
+
+            var normalized = NormalizerService.Normalize(entry);
+
+            var obj = new JsonObject
+            {
+                ["device_key"] = $"nt{nodeType}:n{node}:m{mod}:p{point}",
+                ["data"] = normalized.DeepClone()
+            };
+
+            dataArray.Add(obj);
+        }
+
+        root["data"] = dataArray;
+        return root;
+    }
+
+    private JsonObject AtParse(string subKey, JsonNode data)
+    {
+        var jsonResponse = data["resp"]?.AsObject() ?? new JsonObject();
+        var subarr = jsonResponse[subKey] as JsonArray ?? new JsonArray();
+
+        var root = new JsonObject();
+        var dataArray = new JsonArray();
+
+        foreach (var entryNode in subarr)
+        {
+            if (entryNode is not JsonObject entry)
+                continue;
+
+            var nodeType = entry["@nodetype"]?.GetValue<string>() ?? "?";
+            var node = entry["@node"]?.GetValue<string>() ?? "?";
+            var mod = entry["@mod"]?.GetValue<string>() ?? "?";
+            var point = entry["@point"]?.GetValue<string>() ?? "?";
 
             var normalized = NormalizerService.Normalize(entry);
 
@@ -130,10 +212,5 @@ public sealed class DanfossDeviceClient : IBmsClient
             Console.WriteLine($"Failed to pretty print JSON: {ex.Message}");
         }
     }
-
-    // private Task<JsonNode?> ReadHvacUnitAsync(string ahindex, CancellationToken ct)
-    // {
-    //     return _protocol.SendCommandAsync("read_hvac_unit", new Dictionary<string, string>() { ["ahindex"] = ahindex }, ct);
-    // }
 
 }
