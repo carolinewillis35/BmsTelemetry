@@ -25,6 +25,7 @@ builder.Services.AddAppDatabase("Data/database.db");
 
 // Workers
 builder.Services.AddHostedService<BmsSupervisor>();
+builder.Services.AddHostedService<TelemetryWorker>();
 
 var app = builder.Build();
 

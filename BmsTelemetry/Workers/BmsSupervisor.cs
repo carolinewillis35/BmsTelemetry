@@ -6,7 +6,7 @@ public class BmsSupervisor : BackgroundService
     private readonly IIotDevice _iotDevice;
     private readonly ILogger<BmsSupervisor> _logger;
 
-    private DateTime lastHealthPayloadTime;
+    private DateTime lastHealthPayloadTime = DateTime.UtcNow;
 
     public BmsSupervisor(IBmsHandlerRegistry registry, IIotDevice iotDevice, ILogger<BmsSupervisor> logger)
     {
