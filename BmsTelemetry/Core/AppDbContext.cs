@@ -15,36 +15,29 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<TelemetryRecord>(entity =>
         {
-            entity.HasKey(e => e.Id);
+            entity.HasKey(e => new { e.Id, e.DeviceKey, e.DataKey });
 
             entity.Property(e => e.Ip)
-                  .IsRequired()
-                  .HasMaxLength(50);
+                  .IsRequired();
 
             entity.Property(e => e.DeviceKey)
-                  .IsRequired()
-                  .HasMaxLength(100);
+                  .IsRequired();
 
             entity.Property(e => e.DataKey)
-                  .IsRequired()
-                  .HasMaxLength(200);
+                  .IsRequired();
 
             entity.Property(e => e.DataValue)
-                  .IsRequired()
-                  .HasMaxLength(500);
+                  .IsRequired();
 
             entity.Property(e => e.Source)
-                  .IsRequired()
-                  .HasMaxLength(100);
+                  .IsRequired();
 
             entity.Property(e => e.Timestamp)
                   .IsRequired();
 
             // Useful indexes for telemetry workloads
-            entity.HasIndex(e => e.Timestamp);
-            entity.HasIndex(e => new { e.DeviceKey, e.Timestamp });
-            entity.HasIndex(e => new { e.Ip, e.Timestamp });
-            entity.HasIndex(e => new { e.DeviceKey, e.DataKey });
+            // entity.HasIndex(e => e.Timestamp);
+            // entity.HasIndex(e => new { e.DeviceKey, e.DataKey });
         });
     }
 }
