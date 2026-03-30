@@ -40,8 +40,8 @@ public sealed class DanfossDeviceClient : IBmsClient
 
         // Test new commands
         yield return new ClientCommand(
-            "ReadMetersAsync",
-            ct => ReadMetersAsync(ct)
+            "AlarmDetailAsync",
+            ct => AlarmDetailAsync(ct)
         );
     }
 
@@ -128,6 +128,11 @@ public sealed class DanfossDeviceClient : IBmsClient
         yield return new ClientCommand(
             "ReadMetersAsync",
             ct => ReadMetersAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "AlarmDetailAsync",
+            ct => AlarmDetailAsync(ct)
         );
     }
 
@@ -473,6 +478,41 @@ public sealed class DanfossDeviceClient : IBmsClient
             return null;
 
         return BareParse("meters", response);
+    }
+
+    private async Task<JsonNode?> AlarmDetailAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "AlarmSummaryAsync", ct);
+        string alarmRef;
+        try
+        {
+            var contents = jsonRows[0];
+            alarmRef = contents?["Data"]?["active__ref"]?.GetValue<string>() ?? "";
+            if (alarmRef == "")
+                return null;
+        }
+        catch
+        {
+            return null;
+        }
+
+        var response = await _protocol.SendCommandAsync(
+            "alarm_detail",
+            new Dictionary<string, string>()
+            {
+                ["current"] = alarmRef,
+                ["only"] = "any",
+                ["expanded"] = "2",
+                ["date_format"] = "2",
+                ["time_format"] = "1"
+            },
+            ct
+        );
+
+        if (response is null)
+            return null;
+
+        return BareParse($"alarm:ref{alarmRef}", response);
     }
 
     // Helper methods
