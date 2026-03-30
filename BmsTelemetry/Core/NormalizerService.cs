@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.Json;
 
 public static class NormalizerService
 {
@@ -61,6 +62,25 @@ public static class NormalizerService
             case JsonValue val:
                 output[prefix] = val.GetValue<object?>();
                 break;
+        }
+    }
+
+    public static void ConsolePrettyPrint(JsonNode obj)
+    {
+        try
+        {
+            var pretty = obj.ToJsonString(new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            Console.WriteLine("=== JSON ===");
+            Console.WriteLine(pretty);
+            Console.WriteLine("============");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to pretty print JSON: {ex.Message}");
         }
     }
 }

@@ -40,8 +40,8 @@ public sealed class DanfossDeviceClient : IBmsClient
 
         // Test new commands
         // yield return new ClientCommand(
-        //     "ReadHvacServiceAsync",
-        //     ct => ReadHvacServiceAsync(ct)
+        //     "ReadLightingZoneAsync",
+        //     ct => ReadLightingZoneAsync(ct)
         // );
     }
 
@@ -103,6 +103,11 @@ public sealed class DanfossDeviceClient : IBmsClient
         yield return new ClientCommand(
             "ReadHvacServiceAsync",
             ct => ReadHvacServiceAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadLightingZoneAsync",
+            ct => ReadLightingZoneAsync(ct)
         );
     }
 
@@ -256,6 +261,47 @@ public sealed class DanfossDeviceClient : IBmsClient
         var final = SingleAtParse("arrkey", "@ahindex", atContainer);
 
         return final;
+    }
+
+    private async Task<JsonNode?> ReadLightingZoneAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadLightingAsync", ct);
+
+        string methodName = "ReadLightingZoneAsync";
+        //
+        var outArr = new JsonArray();
+
+        int i = 0;
+        foreach (var entry in jsonRows)
+        {
+            i++;
+            _logger.LogInformation("Executing {methodName} step {i} of {jsonRows.Count}", methodName, i, jsonRows.Count);
+
+            var index = entry?["Data"]?["index"]?.GetValue<string>() ?? null;
+            var nodeType = entry?["Data"]?["@nodetype"]?.GetValue<string>() ?? "?";
+            var node = entry?["Data"]?["@node"]?.GetValue<string>() ?? "?";
+            var mod = entry?["Data"]?["@mod"]?.GetValue<string>() ?? "?";
+            var point = entry?["Data"]?["@point"]?.GetValue<string>() ?? "?";
+
+            if (string.IsNullOrEmpty(index))
+                continue;
+
+            var response = await _protocol.SendCommandAsync(
+                "read_lighting_zone",
+                new Dictionary<string, string>() { ["index"] = index },
+                ct
+            );
+
+            if (response is null)
+                continue;
+
+            var result = BareParse($"nt{nodeType}:n{node}:m{mod}:p{point}", response);
+            outArr.Add(result["data"]![0]!.DeepClone());
+        }
+
+        var jsonWrap = new JsonObject();
+        jsonWrap["data"] = outArr.DeepClone();
+        return jsonWrap;
     }
 
     // private Task<JsonNode?> ReadHvacUnitAsync(string ahindex, CancellationToken ct)
