@@ -23,26 +23,26 @@ public sealed class DanfossDeviceClient : IBmsClient
     public async IAsyncEnumerable<ClientCommand> GetPollingSequenceAsync(
         [EnumeratorCancellation] CancellationToken ct)
     {
-        if (DateTime.UtcNow - _lastInitTime >= TimeSpan.FromMinutes(60))
-        {
-            foreach (var cmd in GetInitCommands())
-            {
-                yield return cmd;
-            }
-
-            _lastInitTime = DateTime.UtcNow;
-        }
-
-        foreach (var cmd in GetContinuousCommands())
-        {
-            yield return cmd;
-        }
+        // if (DateTime.UtcNow - _lastInitTime >= TimeSpan.FromMinutes(60))
+        // {
+        //     foreach (var cmd in GetInitCommands())
+        //     {
+        //         yield return cmd;
+        //     }
+        //
+        //     _lastInitTime = DateTime.UtcNow;
+        // }
+        //
+        // foreach (var cmd in GetContinuousCommands())
+        // {
+        //     yield return cmd;
+        // }
 
         // Test new commands
-        // yield return new ClientCommand(
-        //     "ReadLightingZoneAsync",
-        //     ct => ReadLightingZoneAsync(ct)
-        // );
+        yield return new ClientCommand(
+            "ReadSuctionGroupAsync",
+            ct => ReadSuctionGroupAsync(ct)
+        );
     }
 
     private IEnumerable<ClientCommand> GetInitCommands()
@@ -304,10 +304,53 @@ public sealed class DanfossDeviceClient : IBmsClient
         return jsonWrap;
     }
 
-    // private Task<JsonNode?> ReadHvacUnitAsync(string ahindex, CancellationToken ct)
-    // {
-    //     return _protocol.SendCommandAsync("read_hvac_unit", new Dictionary<string, string>() { ["ahindex"] = ahindex }, ct);
-    // }
+    private async Task<JsonNode?> ReadSuctionGroupAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadDevicesAsync", ct);
+
+        var outArr = new JsonArray();
+
+        var seen = new HashSet<(string rId, string sId)>();
+        foreach (var entry in jsonRows)
+        {
+            var sId = entry?["Data"]?["@suction_id"]?.GetValue<string>() ?? null;
+            var rId = entry?["Data"]?["@rack_id"]?.GetValue<string>() ?? null;
+
+            if (string.IsNullOrEmpty(sId) || string.IsNullOrEmpty(rId))
+                continue;
+
+            var addr = (sId, rId);
+
+            if (seen.Contains(addr))
+                continue;
+
+            seen.Add(addr);
+        }
+
+        string methodName = "ReadSuctionGroupAsync";
+        int i = 0;
+        foreach (var idAddr in seen)
+        {
+            i++;
+            _logger.LogInformation("Executing {methodName} step {i} of {seen.Count}", methodName, i, seen.Count);
+
+            var response = await _protocol.SendCommandAsync(
+                "read_suction_group",
+                new Dictionary<string, string>() { ["rack_id"] = idAddr.rId, ["suction_id"] = idAddr.sId },
+                ct
+            );
+
+            if (response is null)
+                continue;
+
+            var result = BareParse($"SuctionGroup:suctId{idAddr.sId}:rackId{idAddr.rId}", response);
+            outArr.Add(result["data"]![0]!.DeepClone());
+        }
+        //
+        var jsonWrap = new JsonObject();
+        jsonWrap["data"] = outArr.DeepClone();
+        return jsonWrap;
+    }
 
     // Helper methods
     private JsonObject BareParse(string deviceKey, JsonNode data)
