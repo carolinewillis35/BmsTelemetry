@@ -21,5 +21,5 @@ clean:
 	rm -rf $(PROJECT)/bin $(PROJECT)/obj
 	rm -rf $(TEST_PROJECT)/bin $(TEST_PROJECT)/obj
 
-publish:
-	dotnet publish $(PROJECT) -c Release -o publish
+winpub:
+	dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
