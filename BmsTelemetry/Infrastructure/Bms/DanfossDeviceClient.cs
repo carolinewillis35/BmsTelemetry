@@ -40,8 +40,8 @@ public sealed class DanfossDeviceClient : IBmsClient
 
         // Test new commands
         // yield return new ClientCommand(
-        //     "ReadVarOutAsync",
-        //     ct => ReadVarOutAsync(ct)
+        //     "ReadListAsync",
+        //     ct => ReadListAsync(ct)
         // );
     }
 
@@ -153,6 +153,11 @@ public sealed class DanfossDeviceClient : IBmsClient
         yield return new ClientCommand(
             "ReadVarOutAsync",
             ct => ReadVarOutAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadListAsync",
+            ct => ReadListAsync(ct)
         );
     }
 
@@ -705,6 +710,58 @@ public sealed class DanfossDeviceClient : IBmsClient
             return null;
 
         return InjectedAtNodetypeParse("3", "var_output", response);
+    }
+
+    private async Task<JsonNode?> ReadListAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadHvacUnitAsync");
+
+        var outArr = new JsonArray();
+        foreach (var entry in jsonRows)
+        {
+            var response = await _protocol.SendCommandAsync(
+                "read_list",
+                new Dictionary<string, string>
+                {
+                    ["nodetype"] = entry?["Data"]?["@nodetype"]?.GetValue<string>() ?? "0",
+                    ["node"] = entry?["Data"]?["@node"]?.GetValue<string>() ?? "0",
+                    ["tableaddress"] = "20021",
+                    ["combo"] = entry?["Data"]?["@combo"]?.GetValue<string>() ?? "0",
+                    // ["index"] = index,
+                    ["bpidx"] = entry?["Data"]?["@bpidx"]?.GetValue<string>() ?? "0",
+                    // ["arg1"] = arg1,
+                    ["useparent"] = "0",
+                    ["configuretype"] = "0",
+                    ["isconfigure"] = "0",
+                    // ["stype"] = stype,
+                    ["subgroup"] = "0",
+                    ["page"] = "0",
+                    ["old_cfgtype"] = "0"
+                },
+                ct
+            );
+
+            if (response is null)
+                return null;
+
+            var thisKey = entry?["DeviceKey"]?.GetValue<string>() ?? "[T]?";
+            thisKey = $"{thisKey}:list";
+
+            var respData = response["resp"]?.AsObject();
+
+            if (respData is null)
+                continue;
+
+            var dataObj = new JsonObject
+            {
+                ["device_key"] = thisKey,
+                ["data"] = NormalizerService.Normalize(respData).DeepClone()
+            };
+
+            outArr.Add(dataObj.DeepClone());
+        }
+
+        return new JsonObject { ["data"] = outArr.DeepClone() };
     }
 
     // Helper methods
