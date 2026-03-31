@@ -22,4 +22,10 @@ clean:
 	rm -rf $(TEST_PROJECT)/bin $(TEST_PROJECT)/obj
 
 winpub:
-	dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
+	dotnet publish $(PROJECT) \
+		-c Release \
+		-r win-x64 \
+		--self-contained true \
+		-o ./publish/win-x64 \
+		/p:PublishSingleFile=true \
+		/p:EnableCompressionInSingleFile=true
