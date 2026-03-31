@@ -9,8 +9,8 @@ public static class IotDeviceExtensions
         if (env.IsDevelopment())
         {
             // services.AddSingleton<IIotDevice, ConsoleIotDevice>();
-            // services.AddSingleton<IIotDevice, VoidIotDevice>();
-            services.AddSingleton<IIotDevice, AzureIotDevice>();
+            services.AddSingleton<IIotDevice, VoidIotDevice>();
+            // services.AddSingleton<IIotDevice, AzureIotDevice>();
             return;
         }
 
