@@ -33,18 +33,21 @@ public class IBmsHandlerFactory
     {
         switch (deviceSettings.device_type)
         {
-            // case BmsType.EmersonE2:
-            //     return new E2DeviceClient(
-            //         new BmsHttpTransport(
-            //             new Uri($"http://{deviceSettings.IP}:14106/JSON-RPC"),
-            //             generalSettings,
-            //             _loggerFactory
-            //         )
-            //     );
             case BmsType.Danfoss:
                 return new DanfossDeviceClient(
                     new BmsHttpTransport(
                         new Uri($"http://{deviceSettings.IP}/http/xml.cgi"),
+                        generalSettings,
+                        _loggerFactory
+                    ),
+                    deviceSettings.IP,
+                    _dbReader,
+                    _loggerFactory
+                );
+            case BmsType.EmersonE2:
+                return new E2DeviceClient(
+                    new BmsHttpTransport(
+                        new Uri($"http://{deviceSettings.IP}:14106/JSON-RPC"),
                         generalSettings,
                         _loggerFactory
                     ),

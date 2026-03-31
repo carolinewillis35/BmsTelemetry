@@ -1,7 +1,5 @@
 using System.Text.Json.Nodes;
-using System.Text.Json;
 using System.Runtime.CompilerServices;
-using System.Xml;
 using System.Xml.Linq;
 
 public sealed class DanfossDeviceClient : IBmsClient
