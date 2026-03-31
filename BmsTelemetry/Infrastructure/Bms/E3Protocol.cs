@@ -70,9 +70,6 @@ public class E3Protocol
         var encoded = Uri.EscapeDataString(json);
         var url = $"{_transport._endpoint}?m={encoded}";
 
-        _logger.LogCritical(json.ToString());
-        _logger.LogCritical(url.ToString());
-
         var request = new HttpRequestMessage(httpMethod, url);
 
         // Only POST gets a body
