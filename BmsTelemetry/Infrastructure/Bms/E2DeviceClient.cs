@@ -8,7 +8,7 @@ public sealed class E2DeviceClient : IBmsClient
     private readonly IBmsTransport _transport;
     private readonly DbReader _dbReader;
     private readonly string _ip;
-    private string _controllerName = "";
+    private string _controllerName = "HVAC/LTS"; // set to reasonable default for testing
     private DateTime _lastInitTime = DateTime.MinValue;
 
     public E2DeviceClient(IBmsTransport transport, string deviceIP, DbReader dbReader, ILoggerFactory loggerFactory)
@@ -39,8 +39,8 @@ public sealed class E2DeviceClient : IBmsClient
 
         // Test new commands
         yield return new ClientCommand(
-            "E2.GetCellListAsync",
-            ct => GetCellListAsync(ct)
+            "E2.GetAlarmListAsync",
+            ct => GetAlarmListAsync(ct)
         );
     }
 
@@ -120,6 +120,44 @@ public sealed class E2DeviceClient : IBmsClient
             {
                 ["device_key"] = $"controller{_controllerName}:cell{name}",
                 ["data"] = cell?.DeepClone() ?? new JsonObject()
+            });
+        }
+
+        var result = new JsonObject { ["data"] = outArr };
+
+        return result;
+    }
+
+    private async Task<JsonNode?> GetAlarmListAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("E2.GetAlarmList", new JsonArray { _controllerName }, ct);
+        if (response is null)
+            return null;
+
+        var alarmArr = response["result"]?["data"]?.AsArray() ?? new JsonArray();
+
+        var outArr = new JsonArray();
+
+        foreach (var alarm in alarmArr)
+        {
+            int? advid = null;
+
+            try
+            {
+                advid = alarm?["advid"]?.GetValue<int>();
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (advid is null)
+                continue;
+
+            outArr.Add(new JsonObject
+            {
+                ["device_key"] = $"controller{_controllerName}:alarm{advid}",
+                ["data"] = alarm?.DeepClone() ?? new JsonObject()
             });
         }
 
