@@ -2,7 +2,7 @@ SOLUTION=BmsTelemetry.slnx
 PROJECT=BmsTelemetry
 TEST_PROJECT=BmsTelemetry.Tests
 
-.PHONY: build test run capture clean restore publish
+.PHONY: build test run capture clean restore winpub
 
 restore:
 	dotnet restore $(SOLUTION)
