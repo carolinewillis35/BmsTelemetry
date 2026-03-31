@@ -55,14 +55,17 @@ public class IBmsHandlerFactory
                     _dbReader,
                     _loggerFactory
                 );
-            // case BmsType.EmersonE3:
-            //     return new E3DeviceClient(
-            //         new BmsHttpTransport(
-            //             new Uri($"http://{deviceSettings.IP}/cgi-bin/mgw.cgi"),
-            //             generalSettings,
-            //             _loggerFactory
-            //         )
-            //     );
+            case BmsType.EmersonE3:
+                return new E3DeviceClient(
+                    new E3BmsHttpTransport(
+                        new Uri($"http://{deviceSettings.IP}/cgi-bin/mgw.cgi"),
+                        generalSettings,
+                        _loggerFactory
+                    ),
+                    deviceSettings.IP,
+                    _dbReader,
+                    _loggerFactory
+                );
             default:
                 throw new NotImplementedException($"Device type {deviceSettings.device_type} is not implemented!");
         }
