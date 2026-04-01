@@ -2,7 +2,11 @@ using System.Text.Json.Nodes;
 
 public class VoidIotDevice : IIotDevice
 {
-    public ConnectionStatus Connected { get; init; } = ConnectionStatus.Unknown;
+    public ConnectionStatus Connected { get; init; } = ConnectionStatus.Disconnected;
+    public int TotalMessagesSent { get; private set; } = 0;
+    public string Type { get; init; } = "Void IoT edge device";
+
+    public event Action? OnStatusChanged;
 
     public Task ConnectAsync(CancellationToken ct = default)
     {

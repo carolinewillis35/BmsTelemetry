@@ -1,17 +1,18 @@
 public interface IBmsHandler
 {
+    event Action? OnStatusChanged;
+
     string DeviceIP { get; init; }
     BmsType DeviceType { get; init; }
+
     ConnectionStatus Connection { get; }
     BmsHandlerStatus Status { get; }
-
     int ConsecutiveFailures { get; }
     DateTime LastSuccess { get; }
     DateTime LastFailure { get; }
 
-    Task StartAsync(CancellationToken ct);
-
-    Task StopAsync();
-
     Task EvaluateAsync(CancellationToken ct);
+
+    ValueTask EnqueueStart();
+    ValueTask EnqueueStop();
 }

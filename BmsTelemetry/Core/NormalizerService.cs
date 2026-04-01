@@ -1,12 +1,9 @@
 using System.Text.Json.Nodes;
+using System.Text.Json;
 
-public sealed class NormalizerService
+public static class NormalizerService
 {
-    public JsonObject Normalize(
-        string deviceIp,
-        string deviceType,
-        string dataAddress,
-        JsonObject? rawData)
+    public static JsonObject Normalize(JsonObject? rawData)
     {
         var flat = new Dictionary<string, object?>();
 
@@ -29,15 +26,10 @@ public sealed class NormalizerService
             };
         }
 
-        return new JsonObject
-        {
-            ["device_key"] = $"{deviceType}:{dataAddress}",
-            ["ip"] = deviceIp,
-            ["data"] = dataObject
-        };
+        return dataObject;
     }
 
-    private void FlattenJson(JsonNode node, Dictionary<string, object?> output, string prefix)
+    private static void FlattenJson(JsonNode node, Dictionary<string, object?> output, string prefix)
     {
         switch (node)
         {
@@ -70,6 +62,25 @@ public sealed class NormalizerService
             case JsonValue val:
                 output[prefix] = val.GetValue<object?>();
                 break;
+        }
+    }
+
+    public static void ConsolePrettyPrint(JsonNode obj)
+    {
+        try
+        {
+            var pretty = obj.ToJsonString(new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            Console.WriteLine("=== JSON ===");
+            Console.WriteLine(pretty);
+            Console.WriteLine("============");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to pretty print JSON: {ex.Message}");
         }
     }
 }

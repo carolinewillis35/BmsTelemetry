@@ -1,0 +1,29 @@
+@rendermode InteractiveServer
+@inject UptimeService UptimeService
+
+<span>@UptimeText</span>
+
+@code {
+    private string UptimeText = "Loading...";
+    private Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(_ =>
+        {
+            UpdateUptime();
+            InvokeAsync(StateHasChanged);
+        }, null, 0, 1000);
+    }
+
+    private void UpdateUptime()
+    {
+        var ts = UptimeService.GetUptime();
+        UptimeText = $"{ts:hh\\:mm\\:ss}";
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}

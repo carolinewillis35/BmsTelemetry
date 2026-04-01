@@ -4,7 +4,7 @@ public static class SettingsExtensions
     {
         // Ensure appsettings.json exists (your custom logic)
         var configPath = Path.Combine(env.ContentRootPath, "appsettings.json");
-        // SettingsConfigurator.EnsureConfig(configPath);
+        SettingsConfigurator.EnsureConfig(configPath);
 
         // Bind strongly-typed settings
         services.Configure<AzureSettings>(config.GetSection("AzureSettings"));

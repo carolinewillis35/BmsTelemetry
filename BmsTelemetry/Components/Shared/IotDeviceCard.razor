@@ -1,0 +1,36 @@
+@inject IIotDevice IotDevice
+
+<!-- <div class="rounded-lg border shadow-sm p-6 bg-white space-y-4 hover:shadow-md"> -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold tracking-tight">IoT Device</h2>
+
+        <div class="flex items-center gap-2">
+            <StatusIcon Connection="@IotDevice.Connected" />
+        </div>
+    </div>
+
+    <!-- Body -->
+    <div class="space-y-1 text-gray-700">
+        <p><span class="font-medium">Type:</span> @IotDevice.Type</p>
+        <p><span class="font-medium">Total messages sent:</span> @IotDevice.TotalMessagesSent</p>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        IotDevice.OnStatusChanged += HandleStatusChanged;
+    }
+
+    private void HandleStatusChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        IotDevice.OnStatusChanged -= HandleStatusChanged;
+    }
+}

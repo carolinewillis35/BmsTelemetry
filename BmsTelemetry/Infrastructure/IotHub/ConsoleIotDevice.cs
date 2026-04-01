@@ -3,7 +3,11 @@ using System.Text.Json.Nodes;
 
 public class ConsoleIotDevice : IIotDevice
 {
-    public ConnectionStatus Connected { get; init; } = ConnectionStatus.Unknown;
+    public ConnectionStatus Connected { get; init; } = ConnectionStatus.Connected;
+    public int TotalMessagesSent { get; private set; } = 0;
+    public string Type { get; init; } = "Console IoT edge device";
+
+    public event Action? OnStatusChanged;
 
     public Task ConnectAsync(CancellationToken ct = default)
     {
@@ -21,6 +25,9 @@ public class ConsoleIotDevice : IIotDevice
         Console.WriteLine("=== IoT Device Message ===");
         Console.WriteLine(json);
         Console.WriteLine("==========================");
+
+        TotalMessagesSent++;
+        OnStatusChanged?.Invoke();
 
         return Task.CompletedTask;
     }

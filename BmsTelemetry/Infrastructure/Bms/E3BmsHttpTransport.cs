@@ -1,6 +1,6 @@
 using MihaZupan;
 
-public class BmsHttpTransport : IBmsTransport
+public class E3BmsHttpTransport : IBmsTransport
 {
     public Uri _endpoint { get; init; }
     private readonly GeneralSettings _generalSettings;
@@ -12,7 +12,7 @@ public class BmsHttpTransport : IBmsTransport
     private readonly SemaphoreSlim _rateLock = new(1, 1);
     private DateTime _lastRequestTime = DateTime.MinValue;
 
-    public BmsHttpTransport(
+    public E3BmsHttpTransport(
         Uri endpoint,
         GeneralSettings generalSettings,
         ILoggerFactory loggerFactory)
@@ -29,7 +29,8 @@ public class BmsHttpTransport : IBmsTransport
     {
         BuildClientIfNeeded();
 
-        request.RequestUri = _endpoint;
+        // literally the same as the base one, just don't overwrite...
+        // request.RequestUri = _endpoint;
 
         var requestName = context is not null
             ? $"request `{context}`"
@@ -234,8 +235,6 @@ public class BmsHttpTransport : IBmsTransport
 
         return new SocketsHttpHandler
         {
-            ConnectTimeout = TimeSpan.FromSeconds(
-                _generalSettings.http_timeout_delay_seconds),
             PooledConnectionLifetime = _generalSettings.keep_alive
                 ? TimeSpan.FromMinutes(10)
                 : TimeSpan.Zero,

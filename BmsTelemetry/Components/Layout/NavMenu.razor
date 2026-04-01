@@ -1,18 +1,24 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">BmsTelemetry</a>
+﻿<div class="h-full w-64 bg-gray-900 text-gray-100 flex flex-col">
+
+    <!-- App title -->
+    <div class="px-6 py-4 border-b border-gray-800">
+        <h2 class="text-xl font-semibold tracking-wide">BmsTelemetry</h2>
     </div>
-</div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+    <!-- Navigation links -->
+    <nav class="flex-1 px-4 py-4 space-y-2">
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
+        <NavLink href="/" Match="NavLinkMatch.All"
+                 class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white"
+                 ActiveClass="bg-gray-800 text-white">
+            Home
+        </NavLink>
+
+        <NavLink href="/help"
+                 class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white"
+                 ActiveClass="bg-gray-800 text-white">
+            Help
+        </NavLink>
+
     </nav>
 </div>
-

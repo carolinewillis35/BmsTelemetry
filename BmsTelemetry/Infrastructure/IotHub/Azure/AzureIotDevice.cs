@@ -15,6 +15,10 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
     private DeviceClient? _deviceClient;
 
     public ConnectionStatus Connected { get; private set; }
+    public int TotalMessagesSent { get; private set; } = 0;
+    public string Type { get; init; } = "Azure IoT edge device";
+
+    public event Action? OnStatusChanged;
 
     public AzureIotDevice(DpsService dpsService, ILogger<AzureIotDevice> logger)
     {
@@ -45,6 +49,7 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
             await _deviceClient.OpenAsync(ct);
             _logger.LogInformation("Azure IoT device has been connected successfully.");
             Connected = ConnectionStatus.Connected;
+            OnStatusChanged?.Invoke();
         }
         finally
         {
@@ -65,7 +70,7 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
                           ?? new JsonObject { ["value"] = item };
 
                 // FILTER HERE
-                if (!obj.ContainsKey("data"))
+                if (!obj.ContainsKey("Data"))
                     continue;
 
                 yield return obj;
@@ -73,12 +78,12 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
         }
         else if (diff is JsonObject obj)
         {
-            if (obj.ContainsKey("data"))
+            if (obj.ContainsKey("Data"))
                 yield return obj;
         }
         else
         {
-            // Non-object payloads cannot have "data", so skip them
+            // Non-object payloads cannot have "Data", so skip them
             yield break;
         }
     }
@@ -149,15 +154,17 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
             {
                 await _deviceClient!.SendEventAsync(message, ct);
                 _logger.LogInformation("Message sent to Azure IotHub successfully");
+                TotalMessagesSent++;
                 await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
             }
             catch (IotHubException ex)
             {
                 _logger.LogError(ex, "Failed to send {payload} to Azure IotHub.", payload);
-                Connected = ConnectionStatus.Disconnecting;
+                Connected = ConnectionStatus.Disconnected;
                 throw;
             }
         }
+        OnStatusChanged?.Invoke();
     }
 
     public async Task DisconnectAsync(CancellationToken ct = default)
@@ -177,6 +184,7 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
             _connectionLock.Release();
             Connected = ConnectionStatus.Disconnected;
         }
+        OnStatusChanged?.Invoke();
     }
 
     public async ValueTask DisposeAsync()

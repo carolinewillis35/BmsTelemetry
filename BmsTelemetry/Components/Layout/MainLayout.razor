@@ -1,18 +1,32 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
+<div class="flex h-screen">
+
+    <!-- Sidebar -->
     <div class="sidebar">
         <NavMenu />
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+    <!-- Main content -->
+    <main class="flex-1 bg-gray-100">
+
+        <!-- Top bar -->
+        <div class="flex justify-between items-center px-6 py-3 bg-white border-b border-gray-200 shadow-sm">
+            <h3 class="text-gray-800 font-semibold flex items-center gap-2">
+                System Uptime:
+                <UptimeDisplay />
+            </h3>
+
+            <NavLink href="/help" class="text-blue-600 hover:text-blue-500 font-medium">
+                Help
+            </NavLink>
         </div>
 
-        <article class="content px-4">
+        <!-- Page content -->
+        <article class="p-6">
             @Body
         </article>
+
     </main>
 </div>
 

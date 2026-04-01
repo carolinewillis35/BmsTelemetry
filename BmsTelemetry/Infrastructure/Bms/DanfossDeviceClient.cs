@@ -1,80 +1,910 @@
 using System.Text.Json.Nodes;
+using System.Runtime.CompilerServices;
+using System.Xml.Linq;
 
-public sealed class DanfossDeviceClient : BaseDeviceClient
+public sealed class DanfossDeviceClient : IBmsClient
 {
     private readonly DanfossProtocol _protocol;
     private readonly ILogger<DanfossDeviceClient> _logger;
-    private readonly IIotDevice _iotDevice;
+    private readonly IBmsTransport _transport;
+    private readonly DbReader _dbReader;
+    private readonly string _ip;
+    private DateTime _lastInitTime = DateTime.MinValue;
 
-    // Data
-    private JsonNode? _sensors;
-
-    public DanfossDeviceClient(IBmsTransport transport, ILoggerFactory loggerFactory, IIotDevice iotDevice) : base(transport)
+    public DanfossDeviceClient(IBmsTransport transport, string deviceIP, DbReader dbReader, ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<DanfossDeviceClient>();
         _protocol = new DanfossProtocol(transport, loggerFactory);
-        _iotDevice = iotDevice;
+        _transport = transport;
+        _dbReader = dbReader;
+        _ip = deviceIP;
     }
 
-    protected override async Task RunAsync(CancellationToken ct)
+    public async IAsyncEnumerable<ClientCommand> GetPollingSequenceAsync(
+        [EnumeratorCancellation] CancellationToken ct)
     {
-        // initialize
-        // _sensors = await ReadSensorsAsync(ct);
-
-        while (!ct.IsCancellationRequested)
+        if (DateTime.UtcNow - _lastInitTime >= TimeSpan.FromMinutes(60))
         {
-            // poll
-            _sensors = await ReadSensorsAsync(ct);
-            await Task.Delay(10_000, ct);
-        }
-        //
-        // need to add a worker to just do it and then print to console!
-        //
-        // todo: implement send to azure (not yet)
-    }
-
-    // Helpers
-
-    private async Task<JsonNode?> ExecuteWithTracking(
-        Func<Task<JsonNode?>> action)
-    {
-        try
-        {
-            var result = await action();
-
-            if (result == null)
+            foreach (var cmd in GetInitCommands())
             {
-                RegisterFailure();
-                return null;
+                yield return cmd;
             }
 
-            RegisterSuccess();
-            return result;
+            _lastInitTime = DateTime.UtcNow;
         }
-        catch (OperationCanceledException)
+
+        foreach (var cmd in GetContinuousCommands())
         {
-            throw; // let cancellation propagate
+            yield return cmd;
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Request failed");
-            RegisterFailure();
-            return null;
-        }
+
+        // Test new commands
+        // yield return new ClientCommand(
+        //     "ReadListAsync",
+        //     ct => ReadListAsync(ct)
+        // );
+    }
+
+    private IEnumerable<ClientCommand> GetInitCommands()
+    {
+        yield return new ClientCommand(
+            "ReadInputsAsync",
+            ct => ReadInputsAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadRelaysAsync",
+            ct => ReadRelaysAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadSensorsAsync",
+            ct => ReadSensorsAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadVarOutsAsync",
+            ct => ReadVarOutsAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadUnitsAsync",
+            ct => ReadUnitsAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadDevicesAsync",
+            ct => ReadDevicesAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadSuctionGroupAsync",
+            ct => ReadSuctionGroupAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadCondenserAsync",
+            ct => ReadCondenserAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadCircuitAsync",
+            ct => ReadCircuitAsync(ct)
+        );
+    }
+
+    private IEnumerable<ClientCommand> GetContinuousCommands()
+    {
+        yield return new ClientCommand(
+            "AlarmSummaryAsync",
+            ct => AlarmSummaryAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadLightingAsync",
+            ct => ReadLightingAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadHvacAsync",
+            ct => ReadHvacAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadHvacUnitAsync",
+            ct => ReadHvacUnitAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadHvacServiceAsync",
+            ct => ReadHvacServiceAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadLightingZoneAsync",
+            ct => ReadLightingZoneAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadMetersAsync",
+            ct => ReadMetersAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "AlarmDetailAsync",
+            ct => AlarmDetailAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadSensorAsync",
+            ct => ReadSensorAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadInputAsync",
+            ct => ReadInputAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadRelayAsync",
+            ct => ReadRelayAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadVarOutAsync",
+            ct => ReadVarOutAsync(ct)
+        );
+
+        yield return new ClientCommand(
+            "ReadListAsync",
+            ct => ReadListAsync(ct)
+        );
     }
 
     // Interaction methods
-
-    private Task<JsonNode?> ReadSensorsAsync(CancellationToken ct)
+    private async Task<JsonNode?> ReadSensorsAsync(CancellationToken ct)
     {
-        return ExecuteWithTracking(() =>
-            _protocol.SendCommandAsync("read_sensors", null, ct));
+        var response = await _protocol.SendCommandAsync("read_sensors", null, ct);
+        if (response is null)
+            return null;
+
+        return InjectedNodetypeParse("2", "sensor", response);
     }
 
-    private Task<JsonNode?> ReadHvacUnitAsync(string ahindex, CancellationToken ct)
+    private async Task<JsonNode?> ReadRelaysAsync(CancellationToken ct)
     {
-        return ExecuteWithTracking(() =>
-            _protocol.SendCommandAsync("read_hvac_unit", new Dictionary<string, string>() { ["ahindex"] = ahindex }, ct));
+        var response = await _protocol.SendCommandAsync("read_relays", null, ct);
+        if (response is null)
+            return null;
+
+        return InjectedNodetypeParse("1", "relay", response);
     }
 
+    private async Task<JsonNode?> ReadInputsAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("read_inputs", null, ct);
+        if (response is null)
+            return null;
+
+        return InjectedNodetypeParse("0", "input", response);
+    }
+
+    private async Task<JsonNode?> ReadVarOutsAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("read_var_outs", null, ct);
+        if (response is null)
+            return null;
+
+        return InjectedNodetypeParse("3", "var_output", response);
+    }
+
+    private async Task<JsonNode?> AlarmSummaryAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("alarm_summary", null, ct);
+        if (response is null)
+            return null;
+
+        return BareParse("alarm_summary", response);
+    }
+
+    private async Task<JsonNode?> ReadDevicesAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("read_devices", null, ct);
+        if (response is null)
+            return null;
+
+        return AtParse("device", response);
+    }
+
+    private async Task<JsonNode?> ReadLightingAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("read_lighting", null, ct);
+        if (response is null)
+            return null;
+
+        return AtParse("device", response);
+    }
+
+    private async Task<JsonNode?> ReadUnitsAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("read_units", null, ct);
+        if (response is null)
+            return null;
+
+        return BareParse("controller", response);
+    }
+
+    private async Task<JsonNode?> ReadHvacAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("read_hvac", null, ct);
+        if (response is null)
+            return null;
+
+        return AtParse("device", response);
+    }
+
+    private async Task<JsonNode?> ReadHvacUnitAsync(CancellationToken ct)
+    {
+        var atContainer = new JsonObject();
+        var arrContainer = new JsonObject();
+        var jsonArr = new JsonArray();
+
+        string methodName = "ReadHvacUnitAsync";
+
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadHvacAsync", ct);
+
+        for (var i = 1; i < jsonRows.Count + 1; i++)
+        {
+            _logger.LogInformation("Executing {methodName} step {i} of {jsonRows.Count}", methodName, i, jsonRows.Count);
+
+            var response = await _protocol.SendCommandAsync(
+                "read_hvac_unit",
+                new Dictionary<string, string>() { ["ahindex"] = i.ToString() },
+                ct
+            );
+
+            if (response is null)
+                continue;
+
+            var jsonData = response["resp"]?.AsObject() ?? new JsonObject();
+            jsonArr.Add(jsonData.DeepClone());
+        }
+
+        arrContainer["arrkey"] = jsonArr;
+        atContainer["resp"] = arrContainer;
+
+        var final = AtParse("arrkey", atContainer);
+
+        return final;
+    }
+
+    private async Task<JsonNode?> ReadHvacServiceAsync(CancellationToken ct)
+    {
+        var atContainer = new JsonObject();
+        var arrContainer = new JsonObject();
+        var jsonArr = new JsonArray();
+
+        string methodName = "ReadHvacServiceAsync";
+
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadHvacAsync", ct);
+
+        for (var i = 1; i < jsonRows.Count + 1; i++)
+        {
+            _logger.LogInformation("Executing {methodName} step {i} of {jsonRows.Count}", methodName, i, jsonRows.Count);
+
+            var response = await _protocol.SendCommandAsync(
+                "read_hvac_service",
+                new Dictionary<string, string>() { ["ahindex"] = i.ToString() },
+                ct
+            );
+
+            if (response is null)
+                continue;
+
+            var jsonData = response["resp"]?.AsObject() ?? new JsonObject();
+            jsonArr.Add(jsonData.DeepClone());
+        }
+
+        arrContainer["arrkey"] = jsonArr;
+        atContainer["resp"] = arrContainer;
+
+        var final = SingleAtParse("arrkey", "@ahindex", atContainer);
+
+        return final;
+    }
+
+    private async Task<JsonNode?> ReadLightingZoneAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadLightingAsync", ct);
+
+        string methodName = "ReadLightingZoneAsync";
+        //
+        var outArr = new JsonArray();
+
+        int i = 0;
+        foreach (var entry in jsonRows)
+        {
+            i++;
+            _logger.LogInformation("Executing {methodName} step {i} of {jsonRows.Count}", methodName, i, jsonRows.Count);
+
+            var index = entry?["Data"]?["index"]?.GetValue<string>() ?? null;
+            var nodeType = entry?["Data"]?["@nodetype"]?.GetValue<string>() ?? "?";
+            var node = entry?["Data"]?["@node"]?.GetValue<string>() ?? "?";
+            var mod = entry?["Data"]?["@mod"]?.GetValue<string>() ?? "?";
+            var point = entry?["Data"]?["@point"]?.GetValue<string>() ?? "?";
+
+            if (string.IsNullOrEmpty(index))
+                continue;
+
+            var response = await _protocol.SendCommandAsync(
+                "read_lighting_zone",
+                new Dictionary<string, string>() { ["index"] = index },
+                ct
+            );
+
+            if (response is null)
+                continue;
+
+            var result = BareParse($"nt{nodeType}:n{node}:m{mod}:p{point}", response);
+            outArr.Add(result["data"]![0]!.DeepClone());
+        }
+
+        var jsonWrap = new JsonObject();
+        jsonWrap["data"] = outArr.DeepClone();
+        return jsonWrap;
+    }
+
+    private async Task<JsonNode?> ReadSuctionGroupAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadDevicesAsync", ct);
+
+        var outArr = new JsonArray();
+
+        var seen = new HashSet<(string rId, string sId)>();
+        foreach (var entry in jsonRows)
+        {
+            var sId = entry?["Data"]?["@suction_id"]?.GetValue<string>() ?? null;
+            var rId = entry?["Data"]?["@rack_id"]?.GetValue<string>() ?? null;
+
+            if (string.IsNullOrEmpty(sId) || string.IsNullOrEmpty(rId))
+                continue;
+
+            var addr = (sId, rId);
+
+            if (seen.Contains(addr))
+                continue;
+
+            seen.Add(addr);
+        }
+
+        string methodName = "ReadSuctionGroupAsync";
+        int i = 0;
+        foreach (var idAddr in seen)
+        {
+            i++;
+            _logger.LogInformation("Executing {methodName} step {i} of {seen.Count}", methodName, i, seen.Count);
+
+            var response = await _protocol.SendCommandAsync(
+                "read_suction_group",
+                new Dictionary<string, string>() { ["rack_id"] = idAddr.rId, ["suction_id"] = idAddr.sId },
+                ct
+            );
+
+            if (response is null)
+                continue;
+
+            var result = BareParse($"SuctionGroup:suctId{idAddr.sId}:rackId{idAddr.rId}", response);
+            outArr.Add(result["data"]![0]!.DeepClone());
+        }
+        //
+        var jsonWrap = new JsonObject();
+        jsonWrap["data"] = outArr.DeepClone();
+        return jsonWrap;
+    }
+
+    private async Task<JsonNode?> ReadCondenserAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadDevicesAsync", ct);
+
+        var outArr = new JsonArray();
+
+        var seen = new HashSet<string>();
+        foreach (var entry in jsonRows)
+        {
+            var rId = entry?["Data"]?["@rack_id"]?.GetValue<string>() ?? null;
+
+            if (string.IsNullOrEmpty(rId))
+                continue;
+
+            if (seen.Contains(rId))
+                continue;
+
+            seen.Add(rId);
+        }
+
+        string methodName = "ReadCondenserAsync";
+        int i = 0;
+        foreach (var idAddr in seen)
+        {
+            i++;
+            _logger.LogInformation("Executing {methodName} step {i} of {seen.Count}", methodName, i, seen.Count);
+
+            var response = await _protocol.SendCommandAsync(
+                "read_condenser",
+                new Dictionary<string, string>() { ["rack_id"] = idAddr },
+                ct
+            );
+
+            if (response is null)
+                continue;
+
+            var result = BareParse($"condenser:rackId{idAddr}", response);
+            outArr.Add(result["data"]![0]!.DeepClone());
+        }
+        //
+        var jsonWrap = new JsonObject();
+        jsonWrap["data"] = outArr.DeepClone();
+        return jsonWrap;
+    }
+
+    private async Task<JsonNode?> ReadCircuitAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadSuctionGroupAsync", ct);
+
+        var outArr = new JsonArray();
+
+        string methodName = "ReadCircuitAsync";
+        int i = 0;
+        foreach (var entry in jsonRows)
+        {
+            var sId = entry?["Data"]?["@suction_id"]?.GetValue<string>() ?? null;
+            var rId = entry?["Data"]?["@rack_id"]?.GetValue<string>() ?? null;
+            var num = entry?["Data"]?["num_circuits"]?.GetValue<string>() ?? "0";
+
+            if (!int.TryParse(num, out var numInt))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(rId) || string.IsNullOrEmpty(sId))
+                continue;
+
+            i++;
+            _logger.LogInformation("Executing {methodName} step {i} of {jsonRows.Count}", methodName, i, jsonRows.Count);
+
+            for (var j = 1; j < numInt + 1; j++)
+            {
+                _logger.LogInformation("Executing {methodName} step {i} substep {j} of {numInt}", methodName, i, j, numInt);
+
+                var response = await _protocol.SendCommandAsync(
+                    "read_condenser",
+                    new Dictionary<string, string>() { ["rack_id"] = rId, ["suction_id"] = sId, ["circuit_id"] = j.ToString() },
+                    ct
+                );
+
+                if (response is null)
+                    continue;
+
+                var result = BareParse($"circuit:rackId{rId}:suctId{sId}:circId{j}", response);
+                outArr.Add(result["data"]![0]!.DeepClone());
+            }
+
+        }
+
+        var jsonWrap = new JsonObject();
+        jsonWrap["data"] = outArr.DeepClone();
+        return jsonWrap;
+    }
+
+    private async Task<JsonNode?> ReadMetersAsync(CancellationToken ct)
+    {
+        var response = await _protocol.SendCommandAsync("read_meters", null, ct);
+        if (response is null)
+            return null;
+
+        return BareParse("meters", response);
+    }
+
+    private async Task<JsonNode?> AlarmDetailAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "AlarmSummaryAsync", ct);
+        string alarmRef;
+        try
+        {
+            var contents = jsonRows[0];
+            alarmRef = contents?["Data"]?["active__ref"]?.GetValue<string>() ?? "";
+            if (alarmRef == "")
+                return null;
+        }
+        catch
+        {
+            return null;
+        }
+
+        var response = await _protocol.SendCommandAsync(
+            "alarm_detail",
+            new Dictionary<string, string>()
+            {
+                ["current"] = alarmRef,
+                ["only"] = "any",
+                ["expanded"] = "2",
+                ["date_format"] = "2",
+                ["time_format"] = "1"
+            },
+            ct
+        );
+
+        if (response is null)
+            return null;
+
+        return BareParse($"alarm:ref{alarmRef}", response);
+    }
+
+    private async Task<JsonNode?> ReadSensorAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadSensorsAsync", ct);
+
+        var addresses = new List<(string node, string mod, string point)>();
+
+        foreach (var entry in jsonRows)
+        {
+            var node = entry?["Data"]?["node"]?.GetValue<string>() ?? null;
+            var mod = entry?["Data"]?["mod"]?.GetValue<string>() ?? null;
+            var point = entry?["Data"]?["point"]?.GetValue<string>() ?? null;
+
+            if (string.IsNullOrEmpty(node) || string.IsNullOrEmpty(mod) || string.IsNullOrEmpty(point))
+                continue;
+
+            addresses.Add((node, mod, point));
+        }
+
+        var response = await _protocol.SendCommandWithBodyAsync(
+            "read_sensor",
+            new Dictionary<string, string>() { ["valid_only"] = "1" },
+            element =>
+            {
+                foreach (var (node, mod, point) in addresses)
+                {
+                    element.Add(
+                        new XElement("sensor",
+                            new XAttribute("node", node),
+                            new XAttribute("mod", mod),
+                            new XAttribute("point", point)
+                        )
+                    );
+                }
+            },
+            ct
+        );
+
+        if (response is null)
+            return null;
+
+        return InjectedAtNodetypeParse("2", "sensor", response);
+    }
+
+    private async Task<JsonNode?> ReadInputAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadInputsAsync", ct);
+
+        var addresses = new List<(string node, string mod, string point)>();
+
+        foreach (var entry in jsonRows)
+        {
+            var node = entry?["Data"]?["node"]?.GetValue<string>() ?? null;
+            var mod = entry?["Data"]?["mod"]?.GetValue<string>() ?? null;
+            var point = entry?["Data"]?["point"]?.GetValue<string>() ?? null;
+
+            if (string.IsNullOrEmpty(node) || string.IsNullOrEmpty(mod) || string.IsNullOrEmpty(point))
+                continue;
+
+            addresses.Add((node, mod, point));
+        }
+
+        var response = await _protocol.SendCommandWithBodyAsync(
+            "read_input",
+            new Dictionary<string, string>() { ["valid_only"] = "1" },
+            element =>
+            {
+                foreach (var (node, mod, point) in addresses)
+                {
+                    element.Add(
+                        new XElement("input",
+                            new XAttribute("node", node),
+                            new XAttribute("mod", mod),
+                            new XAttribute("point", point)
+                        )
+                    );
+                }
+            },
+            ct
+        );
+
+        if (response is null)
+            return null;
+
+        return InjectedAtNodetypeParse("0", "input", response);
+    }
+
+    private async Task<JsonNode?> ReadRelayAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadRelaysAsync", ct);
+
+        var addresses = new List<(string node, string mod, string point)>();
+
+        foreach (var entry in jsonRows)
+        {
+            var node = entry?["Data"]?["node"]?.GetValue<string>() ?? null;
+            var mod = entry?["Data"]?["mod"]?.GetValue<string>() ?? null;
+            var point = entry?["Data"]?["point"]?.GetValue<string>() ?? null;
+
+            if (string.IsNullOrEmpty(node) || string.IsNullOrEmpty(mod) || string.IsNullOrEmpty(point))
+                continue;
+
+            addresses.Add((node, mod, point));
+        }
+
+        var response = await _protocol.SendCommandWithBodyAsync(
+            "read_relay",
+            null,
+            element =>
+            {
+                foreach (var (node, mod, point) in addresses)
+                {
+                    element.Add(
+                        new XElement("relay",
+                            new XAttribute("node", node),
+                            new XAttribute("mod", mod),
+                            new XAttribute("point", point)
+                        )
+                    );
+                }
+            },
+            ct
+        );
+
+        if (response is null)
+            return null;
+
+        return InjectedAtNodetypeParse("1", "relay", response);
+    }
+
+    private async Task<JsonNode?> ReadVarOutAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadVarOutsAsync", ct);
+
+        var addresses = new List<(string node, string mod, string point)>();
+
+        foreach (var entry in jsonRows)
+        {
+            var node = entry?["Data"]?["node"]?.GetValue<string>() ?? null;
+            var mod = entry?["Data"]?["mod"]?.GetValue<string>() ?? null;
+            var point = entry?["Data"]?["point"]?.GetValue<string>() ?? null;
+
+            if (string.IsNullOrEmpty(node) || string.IsNullOrEmpty(mod) || string.IsNullOrEmpty(point))
+                continue;
+
+            addresses.Add((node, mod, point));
+        }
+
+        var response = await _protocol.SendCommandWithBodyAsync(
+            "read_var_out",
+            null,
+            element =>
+            {
+                foreach (var (node, mod, point) in addresses)
+                {
+                    element.Add(
+                        new XElement("var_output",
+                            new XAttribute("node", node),
+                            new XAttribute("mod", mod),
+                            new XAttribute("point", point)
+                        )
+                    );
+                }
+            },
+            ct
+        );
+
+        if (response is null)
+            return null;
+
+        return InjectedAtNodetypeParse("3", "var_output", response);
+    }
+
+    private async Task<JsonNode?> ReadListAsync(CancellationToken ct)
+    {
+        var jsonRows = await _dbReader.GetHotRowsAsJsonAsync(ip: _ip, source: "ReadHvacUnitAsync");
+
+        var outArr = new JsonArray();
+        foreach (var entry in jsonRows)
+        {
+            var response = await _protocol.SendCommandAsync(
+                "read_list",
+                new Dictionary<string, string>
+                {
+                    ["nodetype"] = entry?["Data"]?["@nodetype"]?.GetValue<string>() ?? "0",
+                    ["node"] = entry?["Data"]?["@node"]?.GetValue<string>() ?? "0",
+                    ["tableaddress"] = "20021",
+                    ["combo"] = entry?["Data"]?["@combo"]?.GetValue<string>() ?? "0",
+                    // ["index"] = index,
+                    ["bpidx"] = entry?["Data"]?["@bpidx"]?.GetValue<string>() ?? "0",
+                    // ["arg1"] = arg1,
+                    ["useparent"] = "0",
+                    ["configuretype"] = "0",
+                    ["isconfigure"] = "0",
+                    // ["stype"] = stype,
+                    ["subgroup"] = "0",
+                    ["page"] = "0",
+                    ["old_cfgtype"] = "0"
+                },
+                ct
+            );
+
+            if (response is null)
+                return null;
+
+            var thisKey = entry?["DeviceKey"]?.GetValue<string>() ?? "[T]?";
+            thisKey = $"{thisKey}:list";
+
+            var respData = response["resp"]?.AsObject();
+
+            if (respData is null)
+                continue;
+
+            var dataObj = new JsonObject
+            {
+                ["device_key"] = thisKey,
+                ["data"] = NormalizerService.Normalize(respData).DeepClone()
+            };
+
+            outArr.Add(dataObj.DeepClone());
+        }
+
+        return new JsonObject { ["data"] = outArr.DeepClone() };
+    }
+
+    // Helper methods
+    private JsonObject BareParse(string deviceKey, JsonNode data)
+    {
+        var jsonResponse = data["resp"]?.AsObject() ?? new JsonObject();
+        var normalized = NormalizerService.Normalize(jsonResponse);
+
+        var obj = new JsonObject
+        {
+            ["device_key"] = deviceKey,
+            ["data"] = normalized.DeepClone()
+        };
+
+        var root = new JsonObject();
+        root["data"] = new JsonArray(obj);
+        return root;
+    }
+
+    private JsonObject InjectedNodetypeParse(string nodeType, string subKey, JsonNode data)
+    {
+        var jsonResponse = data["resp"]?.AsObject() ?? new JsonObject();
+        var subarr = jsonResponse[subKey] as JsonArray ?? new JsonArray();
+
+        var root = new JsonObject();
+        var dataArray = new JsonArray();
+
+        foreach (var entryNode in subarr)
+        {
+            if (entryNode is not JsonObject entry)
+                continue;
+
+            var node = entry["node"]?.GetValue<string>() ?? "?";
+            var mod = entry["mod"]?.GetValue<string>() ?? "?";
+            var point = entry["point"]?.GetValue<string>() ?? "?";
+
+            var normalized = NormalizerService.Normalize(entry);
+
+            var obj = new JsonObject
+            {
+                ["device_key"] = $"nt{nodeType}:n{node}:m{mod}:p{point}",
+                ["data"] = normalized.DeepClone()
+            };
+
+            dataArray.Add(obj);
+        }
+
+        root["data"] = dataArray;
+        return root;
+    }
+
+    private JsonObject InjectedAtNodetypeParse(string nodeType, string subKey, JsonNode data)
+    {
+        var jsonResponse = data["resp"]?.AsObject() ?? new JsonObject();
+        var subarr = jsonResponse[subKey] as JsonArray ?? new JsonArray();
+
+        var root = new JsonObject();
+        var dataArray = new JsonArray();
+
+        foreach (var entryNode in subarr)
+        {
+            if (entryNode is not JsonObject entry)
+                continue;
+
+            var node = entry["@node"]?.GetValue<string>() ?? "?";
+            var mod = entry["@mod"]?.GetValue<string>() ?? "?";
+            var point = entry["@point"]?.GetValue<string>() ?? "?";
+
+            var normalized = NormalizerService.Normalize(entry);
+
+            var obj = new JsonObject
+            {
+                ["device_key"] = $"nt{nodeType}:n{node}:m{mod}:p{point}",
+                ["data"] = normalized.DeepClone()
+            };
+
+            dataArray.Add(obj);
+        }
+
+        root["data"] = dataArray;
+        return root;
+    }
+
+    private JsonObject AtParse(string subKey, JsonNode data)
+    {
+        var jsonResponse = data["resp"]?.AsObject() ?? new JsonObject();
+        var subarr = jsonResponse[subKey] as JsonArray ?? new JsonArray();
+
+        var root = new JsonObject();
+        var dataArray = new JsonArray();
+
+        foreach (var entryNode in subarr)
+        {
+            if (entryNode is not JsonObject entry)
+                continue;
+
+            var nodeType = entry["@nodetype"]?.GetValue<string>() ?? "?";
+            var node = entry["@node"]?.GetValue<string>() ?? "?";
+            var mod = entry["@mod"]?.GetValue<string>() ?? "?";
+            var point = entry["@point"]?.GetValue<string>() ?? "?";
+
+            var normalized = NormalizerService.Normalize(entry);
+
+            var obj = new JsonObject
+            {
+                ["device_key"] = $"nt{nodeType}:n{node}:m{mod}:p{point}",
+                ["data"] = normalized.DeepClone()
+            };
+
+            dataArray.Add(obj);
+        }
+
+        root["data"] = dataArray;
+        return root;
+    }
+
+    private JsonObject SingleAtParse(string subKey, string atKey, JsonNode data)
+    {
+        var jsonResponse = data["resp"]?.AsObject() ?? new JsonObject();
+        var subarr = jsonResponse[subKey] as JsonArray ?? new JsonArray();
+
+        var root = new JsonObject();
+        var dataArray = new JsonArray();
+
+        foreach (var entryNode in subarr)
+        {
+            if (entryNode is not JsonObject entry)
+                continue;
+
+            var atVal = entry[atKey]?.GetValue<string>() ?? "?";
+
+            var normalized = NormalizerService.Normalize(entry);
+
+            var obj = new JsonObject
+            {
+                ["device_key"] = $"{atKey}{atVal}",
+                ["data"] = normalized.DeepClone()
+            };
+
+            dataArray.Add(obj);
+        }
+
+        root["data"] = dataArray;
+        return root;
+    }
 }

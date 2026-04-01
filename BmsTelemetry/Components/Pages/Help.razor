@@ -1,0 +1,194 @@
+@page "/help"
+
+<h1>Help & Documentation</h1>
+
+<p>
+This page provides an overview of how the application works, how to configure it,
+and how to deploy it on a new server. It is intended for technicians, operators,
+and administrators responsible for installation, troubleshooting, and maintenance.
+</p>
+
+<hr />
+
+<h2>Overview</h2>
+<p>
+This application runs as a background service and communicates with BMS (Building
+Management System) devices over HTTP/IP. It periodically polls each device,
+processes the returned data, and uploads telemetry securely to Azure IoT Hub
+using Device Provisioning Service (DPS).
+</p>
+
+<p>
+A lightweight web interface (this site) is hosted using Kestrel and provides
+status information, logs, and configuration visibility.
+</p>
+
+<hr />
+
+<h2>How the System Works</h2>
+<ol>
+    <li>The service loads configuration from <code>appsettings.json</code>.</li>
+    <li>Each device listed under <strong>NetworkSettings</strong> is polled at a fixed interval.</li>
+    <li>Requests are sent using device‑specific protocols (Danfoss, EmersonE2, EmersonE3).</li>
+    <li>Telemetry is formatted and uploaded to Azure IoT Hub using DPS authentication.</li>
+    <li>The web frontend is served via Kestrel on the configured port.</li>
+</ol>
+
+<hr />
+
+<h2>Accessing the Web Interface</h2>
+
+<h3>Kestrel Configuration</h3>
+<p>
+The web interface is hosted by Kestrel. The listening address and port are
+configured in <code>appsettings.json</code>:
+</p>
+
+<pre>
+"Kestrel": {
+  "Endpoints": {
+    "Http": {
+      "Url": "http://0.0.0.0:8080"
+    }
+  }
+}
+</pre>
+
+<ul>
+    <li><strong>0.0.0.0</strong> means “listen on all network interfaces.”  
+        This allows access from other machines on the network.</li>
+    <li><strong>8080</strong> is the port the web UI is served on.</li>
+</ul>
+
+<h3>Firewall / Network Notes</h3>
+<ul>
+    <li>Ensure the server firewall allows inbound TCP traffic on the configured port (default: 8080).</li>
+    <li>If running behind a reverse proxy (NGINX, Apache, IIS), forward traffic to the same port.</li>
+    <li>To change the port, update the <code>Url</code> field and restart the service.</li>
+</ul>
+
+<p>
+Once running, access the web UI using:
+</p>
+
+<pre>
+http://&lt;server-ip&gt;:8080/
+</pre>
+
+<hr />
+
+<h2>Configuration Reference</h2>
+<p>
+All settings are stored in <code>appsettings.json</code>. Below is a detailed explanation
+of each section.
+</p>
+
+<h3>LoggingSettings</h3>
+<ul>
+    <li><strong>MinimumLevel</strong> — Lowest log severity written to file.</li>
+    <li><strong>FileSizeLimitBytes</strong> — Maximum size of each log file before rolling over.</li>
+    <li><strong>RetainedFileCountLimit</strong> — Number of old log files kept before deletion.</li>
+</ul>
+
+<h3>GeneralSettings</h3>
+<ul>
+    <li><strong>http_request_delay_seconds</strong> — Delay between requests to each device IP.</li>
+    <li><strong>http_timeout_delay_seconds</strong> — Timeout for each HTTP request.</li>
+    <li><strong>http_retry_count</strong> — Number of retry attempts for failed device requests.</li>
+    <li><strong>soft_reset_interval_hours</strong> — Periodic cleanup operation (future feature).</li>
+    <li><strong>keep_alive</strong> — Whether HTTP connections remain open between requests.</li>
+</ul>
+
+<h3>AzureSettings</h3>
+<ul>
+    <li><strong>tenant_id</strong> — Azure AD tenant used for authentication.</li>
+    <li><strong>client_id</strong> — Service principal used to access Azure Key Vault.</li>
+    <li><strong>device_id</strong> — IoT Hub device identity name.</li>
+    <li><strong>scope_id</strong> — DPS provisioning scope ID.</li>
+    <li><strong>secret_name</strong> — Name of the DPS group key stored in Key Vault.</li>
+    <li><strong>vault_name</strong> — Azure Key Vault containing the secret.</li>
+    <li><strong>certificate_subject</strong> — Local certificate used to authenticate to Key Vault.</li>
+    <li><strong>sas_ttl_days</strong> — Lifetime of generated SAS tokens.</li>
+</ul>
+
+<h3>NetworkSettings</h3>
+<p>Defines the devices the service will poll.</p>
+
+<ul>
+    <li><strong>ip</strong> — Device IP address.</li>
+    <li><strong>device_type</strong> — Protocol type (case‑sensitive):  
+        <code>Danfoss</code>, <code>EmersonE2</code>, <code>EmersonE3</code>.
+    </li>
+</ul>
+
+<hr />
+
+<h2>Configuration Example</h2>
+
+<pre>
+{
+  "LoggingSettings": {
+    "MinimumLevel": "Information",
+    "FileSizeLimitBytes": 1000000,
+    "RetainedFileCountLimit": 7
+  },
+  "GeneralSettings": {
+    "http_request_delay_seconds": 5,
+    "http_timeout_delay_seconds": 10,
+    "http_retry_count": 3,
+    "soft_reset_interval_hours": 12,
+    "keep_alive": false
+  },
+  "AzureSettings": {
+    "tenant_id": "your-tenant-id",
+    "client_id": "your-client-id",
+    "device_id": "your-iot-device-name",
+    "scope_id": "your-dps-scope-id",
+    "secret_name": "your-keyvault-secret",
+    "vault_name": "your-keyvault-name",
+    "certificate_subject": "your-cert",
+    "sas_ttl_days": 90
+  },
+  "NetworkSettings": {
+    "bms_devices": [
+      {
+        "ip": "10.0.0.10",
+        "device_type": "Danfoss"
+      }
+    ]
+  }
+}
+</pre>
+
+<hr />
+
+<h2>Troubleshooting</h2>
+
+<h3>Cannot Access Web Interface</h3>
+<ul>
+    <li>Verify the service is running.</li>
+    <li>Check that Kestrel is listening on the expected port.</li>
+    <li>Ensure the firewall allows inbound traffic on that port.</li>
+    <li>Confirm you are using the correct server IP address.</li>
+</ul>
+
+<h3>Device Communication Issues</h3>
+<ul>
+    <li>Verify the device IP is reachable from the server.</li>
+    <li>Confirm the <code>device_type</code> is spelled correctly (case‑sensitive).</li>
+    <li>Increase <code>http_timeout_delay_seconds</code> or <code>http_retry_count</code> if needed.</li>
+</ul>
+
+<h3>Azure Authentication Issues</h3>
+<ul>
+    <li>Ensure the service principal has access to the Key Vault.</li>
+    <li>Verify the certificate is installed and matches <code>certificate_subject</code>.</li>
+    <li>Check that the DPS scope ID and device ID are correct.</li>
+</ul>
+
+<hr />
+
+<p>
+For additional support or deployment guidance, consult your system administrator
+or the deployment documentation provided with this application.
+</p>

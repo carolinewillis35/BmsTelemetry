@@ -1,73 +1,202 @@
+using System.Threading.Channels;
+using System.Text.Json.Nodes;
+using EFCore.BulkExtensions;
+
 public class BmsHandler : IBmsHandler
 {
+    // Internals
+    private readonly IBmsClient _bmsClient;
+    private readonly GeneralSettings _generalSettings;
+    private readonly CancellationTokenSource _cts = new();
     private readonly object _stateLock = new();
+    private readonly Channel<HandlerCommand> _queue = Channel.CreateUnbounded<HandlerCommand>();
     private readonly ILogger<BmsHandler> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
 
+    public Task LoopTask { get; }
+    private IAsyncEnumerator<ClientCommand>? _pollEnumerator;
+    public event Action? OnStatusChanged;
+
+    // Identification info
     public string DeviceIP { get; init; }
     public BmsType DeviceType { get; init; }
 
-    public ConnectionStatus Connection { get; private set; } = ConnectionStatus.Unknown;
-    public BmsHandlerStatus Status { get; private set; } = BmsHandlerStatus.Idle;
-
-    public int ConsecutiveFailures { get; private set; }
+    // State info
+    public ConnectionStatus Connection { get; private set; } = ConnectionStatus.Disconnected;
+    public BmsHandlerStatus Status { get; private set; } = BmsHandlerStatus.Stopped;
+    public int ConsecutiveFailures { get; private set; } = 0;
     public DateTime LastSuccess { get; private set; } = DateTime.MinValue;
     public DateTime LastFailure { get; private set; } = DateTime.MinValue;
 
-    private readonly IBmsClient _bmsClient;
-    private readonly GeneralSettings _generalSettings;
-
-    public BmsHandler(DeviceSettings deviceSettings, GeneralSettings generalSettings, IBmsClient bmsClient, ILoggerFactory loggerFactory)
+    public BmsHandler(
+        DeviceSettings deviceSettings,
+        GeneralSettings generalSettings,
+        IBmsClient bmsClient,
+        ILoggerFactory loggerFactory,
+        IServiceScopeFactory scopeFactory)
     {
         DeviceIP = deviceSettings.IP;
         DeviceType = deviceSettings.device_type;
         _bmsClient = bmsClient;
         _generalSettings = generalSettings;
         _logger = loggerFactory.CreateLogger<BmsHandler>();
+        _scopeFactory = scopeFactory;
 
-        // Subscribe to client status updates
-        if (_bmsClient is BaseDeviceClient client)
+        LoopTask = Task.Run(() => RunAsync(_cts.Token));
+    }
+
+    public ValueTask EnqueueStart()
+    {
+        Status = BmsHandlerStatus.Polling;
+        RaiseStatusChange();
+        return _queue.Writer.WriteAsync(HandlerCommand.Start());
+    }
+
+    public ValueTask EnqueueStop()
+    {
+        Status = BmsHandlerStatus.Stopped;
+        RaiseStatusChange();
+        return _queue.Writer.WriteAsync(HandlerCommand.Stop());
+    }
+
+    private async Task RunAsync(CancellationToken ct)
+    {
+        await foreach (var cmd in _queue.Reader.ReadAllAsync(ct))
         {
-            client.OnStatusChanged += UpdateStatus;
+            switch (cmd.Type)
+            {
+                case HandlerCommandType.Start:
+                    await ProcessStartAsync(ct);
+                    break;
+
+                case HandlerCommandType.Stop:
+                    _cts.Cancel();
+                    break;
+
+                case HandlerCommandType.PollStep:
+                    await ExecutePollStepAsync(cmd.ClientCmd!, ct);
+                    break;
+            }
         }
     }
 
-    private void UpdateStatus(ClientStatusUpdate update)
+    private async Task ProcessStartAsync(CancellationToken ct)
     {
-        lock (_stateLock)
-        {
-            Connection = update.Connection;
-            LastSuccess = update.LastSuccess;
-            LastFailure = update.LastFailure;
-            ConsecutiveFailures = update.ConsecutiveFailures;
+        _pollEnumerator = _bmsClient.GetPollingSequenceAsync(ct).GetAsyncEnumerator(ct);
 
-            // Map client state to simplified handler state
-            Status = update.Connection == ConnectionStatus.Connected
-                ? BmsHandlerStatus.Polling
-                : BmsHandlerStatus.Idle;
+        await TryScheduleNextPollStep(ct);
+    }
+
+    private async Task TryScheduleNextPollStep(CancellationToken ct)
+    {
+        if (_queue.Reader.Count > 0)
+            return;
+
+        if (_pollEnumerator == null)
+            return;
+
+        if (await _pollEnumerator.MoveNextAsync())
+        {
+            await _queue.Writer.WriteAsync(HandlerCommand.Poll(_pollEnumerator.Current), ct);
+        }
+        else
+        {
+            await _pollEnumerator.DisposeAsync();
+
+            _pollEnumerator = _bmsClient.GetPollingSequenceAsync(ct).GetAsyncEnumerator(ct);
+
+            await TryScheduleNextPollStep(ct);
         }
     }
 
-    public async Task StartAsync(CancellationToken ct = default)
+    private void RegisterFailure()
     {
-        lock (_stateLock)
-        {
-            if (Status == BmsHandlerStatus.Polling)
-                return; // already running
-        }
-        await _bmsClient.StartAsync(ct);
-        lock (_stateLock)
-        {
-            Status = BmsHandlerStatus.Polling;
-        }
+        ConsecutiveFailures++;
+        LastFailure = DateTime.UtcNow;
+        Connection = ConnectionStatus.Disconnected;
+        RaiseStatusChange();
     }
 
-    public async Task StopAsync()
+    private void RegisterSuccess()
     {
-        await _bmsClient.StopAsync();
-        lock (_stateLock)
+        ConsecutiveFailures = 0;
+        Connection = ConnectionStatus.Connected;
+        LastSuccess = DateTime.UtcNow;
+        RaiseStatusChange();
+    }
+
+    private void RaiseStatusChange()
+    {
+        OnStatusChanged?.Invoke();
+    }
+
+    private async Task ExecutePollStepAsync(ClientCommand cmd, CancellationToken ct)
+    {
+        _logger.LogInformation("Executing poll step {Step}", cmd.Name);
+
+        JsonNode? json = null;
+
+        try
         {
-            Status = BmsHandlerStatus.Stopped;
+            json = await cmd.Action(ct);
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred in the step");
+            // let json stay null and fail in next step
+        }
+
+        if (json is null)
+        {
+            _logger.LogWarning("Poll step {Step} returned null", cmd.Name);
+            RegisterFailure();
+            await TryScheduleNextPollStep(ct);
+            return;
+        }
+
+        RegisterSuccess();
+
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var dataArray = json["data"] as JsonArray;
+        if (dataArray is null)
+        {
+            await TryScheduleNextPollStep(ct);
+            return;
+        }
+
+        var incomingItems = new List<TelemetryRecord>();
+        foreach (var item in dataArray)
+        {
+            var obj = item!.AsObject();
+            var deviceKey = obj["device_key"]?.ToString() ?? "?";
+            var dataObj = obj["data"]!.AsObject();
+
+            foreach (var kvp in dataObj)
+            {
+                incomingItems.Add(new TelemetryRecord
+                {
+                    Ip = DeviceIP,
+                    DeviceKey = $"{DeviceType}:{deviceKey}",
+                    DataKey = kvp.Key,
+                    DataValue = kvp.Value?.ToString() ?? "?",
+                    Timestamp = DateTime.UtcNow,
+                    Source = cmd.Name
+                });
+            }
+        }
+
+        if (!incomingItems.Any())
+        {
+            await TryScheduleNextPollStep(ct);
+            return;
+        }
+
+        // BULK UPSERT
+        await db.BulkInsertOrUpdateAsync(incomingItems, cancellationToken: ct);
+
+        await TryScheduleNextPollStep(ct);
     }
 
     // Called by supervisor/background service to apply smart conditions
@@ -79,16 +208,16 @@ public class BmsHandler : IBmsHandler
             if (ConsecutiveFailures >= 5 && Status != BmsHandlerStatus.Stopped)
             {
                 _logger.LogWarning($"Stopping {this.DeviceIP} due to excessive failures.");
-                _ = StopAsync(); // fire-and-forget safe here
+                EnqueueStop();
                 return;
             }
 
             // Restart if stopped/idle and last failure was > 30 min ago
-            if ((Status == BmsHandlerStatus.Stopped || Status == BmsHandlerStatus.Idle) &&
+            if ((Status == BmsHandlerStatus.Stopped) &&
                 (DateTime.UtcNow - LastFailure) > TimeSpan.FromMinutes(30))
             {
                 _logger.LogInformation($"Starting {this.DeviceIP} after a cooldown period.");
-                _ = StartAsync(ct);
+                EnqueueStart();
             }
         }
     }
