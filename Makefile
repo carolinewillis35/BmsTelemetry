@@ -1,16 +1,20 @@
-SOLUTION=BmsTelemetry.slnx
-PROJECT=BmsTelemetry
-TEST_PROJECT=BmsTelemetry.Tests
+SOLUTION := BmsTelemetry.slnx
+PROJECT := BmsTelemetry
+TEST_PROJECT := BmsTelemetry.Tests
 
-.PHONY: build test run capture clean restore winpub
+TAILWIND_INPUT := ./wwwroot/css/tailwind.css
+TAILWIND_OUTPUT := ./wwwroot/css/site.css
+TAILWIND_CONFIG := ./tailwind.config.js
+
+.PHONY: restore build test run clean tailwind tailwind-build publish
 
 restore:
 	dotnet restore $(SOLUTION)
 
-build:
+build: restore
 	dotnet build $(SOLUTION) --no-restore
 
-test:
+test: build
 	dotnet test $(TEST_PROJECT) --no-build --verbosity normal
 
 run:
@@ -21,7 +25,13 @@ clean:
 	rm -rf $(PROJECT)/bin $(PROJECT)/obj
 	rm -rf $(TEST_PROJECT)/bin $(TEST_PROJECT)/obj
 
-winpub:
+tailwind:
+	cd $(PROJECT) && npx tailwindcss -c $(TAILWIND_CONFIG) -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --watch
+
+tailwind-build:
+	cd $(PROJECT) && npx tailwindcss -c $(TAILWIND_CONFIG) -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify
+
+publish: tailwind-build
 	dotnet publish $(PROJECT) \
 		-c Release \
 		-r win-x64 \

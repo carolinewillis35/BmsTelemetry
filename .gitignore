@@ -24,6 +24,9 @@ logs/
 packages/
 .nuget/
 
+# Node
+node_modules/
+
 # Rider / JetBrains
 .idea/
 
