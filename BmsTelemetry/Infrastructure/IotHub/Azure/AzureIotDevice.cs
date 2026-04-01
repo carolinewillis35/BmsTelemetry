@@ -18,6 +18,8 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
     public int TotalMessagesSent { get; private set; } = 0;
     public string Type { get; init; } = "Azure IoT edge device";
 
+    public event Action? OnStatusChanged;
+
     public AzureIotDevice(DpsService dpsService, ILogger<AzureIotDevice> logger)
     {
         Connected = ConnectionStatus.Unknown;
@@ -47,6 +49,7 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
             await _deviceClient.OpenAsync(ct);
             _logger.LogInformation("Azure IoT device has been connected successfully.");
             Connected = ConnectionStatus.Connected;
+            OnStatusChanged?.Invoke();
         }
         finally
         {
@@ -157,10 +160,11 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
             catch (IotHubException ex)
             {
                 _logger.LogError(ex, "Failed to send {payload} to Azure IotHub.", payload);
-                Connected = ConnectionStatus.Disconnecting;
+                Connected = ConnectionStatus.Disconnected;
                 throw;
             }
         }
+        OnStatusChanged?.Invoke();
     }
 
     public async Task DisconnectAsync(CancellationToken ct = default)
@@ -180,6 +184,7 @@ public sealed class AzureIotDevice : IIotDevice, IAsyncDisposable
             _connectionLock.Release();
             Connected = ConnectionStatus.Disconnected;
         }
+        OnStatusChanged?.Invoke();
     }
 
     public async ValueTask DisposeAsync()

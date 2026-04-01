@@ -1,5 +1,7 @@
 public interface IBmsHandler
 {
+    event Action? OnStatusChanged;
+
     string DeviceIP { get; init; }
     BmsType DeviceType { get; init; }
 

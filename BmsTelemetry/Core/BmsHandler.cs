@@ -15,6 +15,7 @@ public class BmsHandler : IBmsHandler
 
     public Task LoopTask { get; }
     private IAsyncEnumerator<ClientCommand>? _pollEnumerator;
+    public event Action? OnStatusChanged;
 
     // Identification info
     public string DeviceIP { get; init; }
@@ -47,12 +48,14 @@ public class BmsHandler : IBmsHandler
     public ValueTask EnqueueStart()
     {
         Status = BmsHandlerStatus.Polling;
+        RaiseStatusChange();
         return _queue.Writer.WriteAsync(HandlerCommand.Start());
     }
 
     public ValueTask EnqueueStop()
     {
         Status = BmsHandlerStatus.Stopped;
+        RaiseStatusChange();
         return _queue.Writer.WriteAsync(HandlerCommand.Stop());
     }
 
@@ -106,6 +109,27 @@ public class BmsHandler : IBmsHandler
         }
     }
 
+    private void RegisterFailure()
+    {
+        ConsecutiveFailures++;
+        LastFailure = DateTime.UtcNow;
+        Connection = ConnectionStatus.Disconnected;
+        RaiseStatusChange();
+    }
+
+    private void RegisterSuccess()
+    {
+        ConsecutiveFailures = 0;
+        Connection = ConnectionStatus.Connected;
+        LastSuccess = DateTime.UtcNow;
+        RaiseStatusChange();
+    }
+
+    private void RaiseStatusChange()
+    {
+        OnStatusChanged?.Invoke();
+    }
+
     private async Task ExecutePollStepAsync(ClientCommand cmd, CancellationToken ct)
     {
         _logger.LogInformation("Executing poll step {Step}", cmd.Name);
@@ -125,16 +149,12 @@ public class BmsHandler : IBmsHandler
         if (json is null)
         {
             _logger.LogWarning("Poll step {Step} returned null", cmd.Name);
-            ConsecutiveFailures++;
-            LastFailure = DateTime.UtcNow;
-            Connection = ConnectionStatus.Disconnected;
+            RegisterFailure();
             await TryScheduleNextPollStep(ct);
             return;
         }
 
-        ConsecutiveFailures = 0;
-        Connection = ConnectionStatus.Connected;
-        LastSuccess = DateTime.UtcNow;
+        RegisterSuccess();
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

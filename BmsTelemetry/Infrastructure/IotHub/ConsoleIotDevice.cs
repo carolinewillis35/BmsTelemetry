@@ -7,6 +7,8 @@ public class ConsoleIotDevice : IIotDevice
     public int TotalMessagesSent { get; private set; } = 0;
     public string Type { get; init; } = "Console IoT edge device";
 
+    public event Action? OnStatusChanged;
+
     public Task ConnectAsync(CancellationToken ct = default)
     {
         // No-op for dummy device
@@ -25,6 +27,7 @@ public class ConsoleIotDevice : IIotDevice
         Console.WriteLine("==========================");
 
         TotalMessagesSent++;
+        OnStatusChanged?.Invoke();
 
         return Task.CompletedTask;
     }

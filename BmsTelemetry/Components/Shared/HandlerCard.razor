@@ -11,4 +11,19 @@
 
 @code {
     [Parameter] public IBmsHandler BmsHandler { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        BmsHandler.OnStatusChanged += HandleStatusChanged;
+    }
+
+    private void HandleStatusChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        BmsHandler.OnStatusChanged -= HandleStatusChanged;
+    }
 }

@@ -1,0 +1,27 @@
+@inject IIotDevice IotDevice
+
+<div class="card">
+    <div>
+        <ConnectionStatusLight Status="@IotDevice.Connected" />
+        Connection: @IotDevice.Connected
+    </div>
+    <p>Type: @IotDevice.Type</p>
+    <p>Total messages sent: @IotDevice.TotalMessagesSent</p>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        IotDevice.OnStatusChanged += HandleStatusChanged;
+    }
+
+    private void HandleStatusChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        IotDevice.OnStatusChanged -= HandleStatusChanged;
+    }
+}

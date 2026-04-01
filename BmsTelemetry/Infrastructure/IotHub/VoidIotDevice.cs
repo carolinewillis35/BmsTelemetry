@@ -6,6 +6,8 @@ public class VoidIotDevice : IIotDevice
     public int TotalMessagesSent { get; private set; } = 0;
     public string Type { get; init; } = "Void IoT edge device";
 
+    public event Action? OnStatusChanged;
+
     public Task ConnectAsync(CancellationToken ct = default)
     {
         // No-op for dummy device
