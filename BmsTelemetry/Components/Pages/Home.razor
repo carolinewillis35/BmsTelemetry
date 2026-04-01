@@ -2,29 +2,40 @@
 @rendermode InteractiveServer
 @inject IBmsHandlerRegistry BmsHandlerRegistry
 
-<h3>BMS Network</h3>
+<div class="space-y-8">
 
-@if (handlers == null)
-{
-    <p>Loading...</p>
-}
-else
-{
-    <div class="flex justify-start gap-x-10">
-        @foreach (var handler in handlers)
-        {
-            <HandlerCard BmsHandler="handler" />
-        }
+    <!-- Page Header -->
+    <div class="border-b pb-4">
+        <h1 class="text-3xl font-semibold tracking-tight">BMS Network</h1>
+        <p class="text-gray-500">Overview of all BMS handlers</p>
     </div>
-}
 
-<!-- <h3>Azure Information</h3> -->
-<!---->
-<!-- <div class="grid"> -->
-<!--     <IotDeviceCard /> -->
-<!-- </div> -->
+    <!-- Handler Cards -->
+    @if (handlers == null)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            @foreach (var handler in handlers)
+            {
+                <HandlerCard BmsHandler="handler" />
+            }
+        </div>
+    }
 
-<!-- <img src="images/sans.gif" alt="Test GIF" /> -->
+    <!-- Future Azure Information Section -->
+    <div class="border-b pb-4 pt-10">
+        <h2 class="text-2xl font-semibold tracking-tight">Cloud Information</h2>
+        <p class="text-gray-500">Cloud-connected IoT device overview</p>
+    </div>
+
+    <div>
+        <IotDeviceCard />
+    </div>
+
+</div>
 
 @code {
     private IReadOnlyCollection<IBmsHandler>? handlers;
